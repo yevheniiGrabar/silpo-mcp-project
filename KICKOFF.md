@@ -1,30 +1,27 @@
-# KICKOFF — что дать Cowork/Dispatch для старта
+# KICKOFF — старт збірки «Останній Шанс» у Cowork/Dispatch
 
-Подключи в claude.ai аккаунте коннекторы: **GitHub** (для коммитов/PR), репозиторий **yevheniiGrabar/silpo-mcp-project**, и **Silpo MCP** (`https://mcp.silpo.ua/mcp`) с логином в аккаунт Сільпо. План Pro/Max.
+Підключи в claude.ai аккаунті коннектори: **GitHub**, репо **yevheniiGrabar/silpo-mcp-project**, **Silpo MCP** (`https://mcp.silpo.ua/mcp`, з логіном у акаунт Сільпо). План Pro/Max. Моделі: оркестратор Opus 5/high, воркери Sonnet 5/high.
 
-Затем вставь Dispatch этот текст:
+Встав Dispatch цей текст:
 
 ---
 
-Ты — оркестратор сборки проекта в этом репозитории (yevheniiGrabar/silpo-mcp-project).
+Ти — оркестратор збірки проєкту «Останній Шанс» (Last-Chance Engine) у репозиторії yevheniiGrabar/silpo-mcp-project.
 
-**Прочитай сначала:**
-1. `ORCHESTRATOR.md` в корне — это твоя полная инструкция (главный цикл, verify-then-push, модели/effort).
-2. `AGENTS.md` — инварианты, которые нельзя нарушать.
-3. Весь `docs/` — ТЗ. Особенно `docs/06-MCP-VERIFIED.md` (проверенные факты Silpo MCP: футган со слотом, ре-ранкинг матчинга, канонический флоу корзины, checkout-ссылки) и `docs/07-BUILD-ORCHESTRATION.md` (карта фаз, зависимости, acceptance-команды).
+**Прочитай спершу:**
+1. `ORCHESTRATOR.md` — твоя повна інструкція (цикл, verify-then-push, моделі).
+2. `AGENTS.md` — інваріанти.
+3. `docs/00-OVERVIEW.md` + `docs/CONCEPT-LAST-CHANCE.md` — продукт.
+4. `docs/06-MCP-VERIFIED.md` — перевірені факти MCP (футган слота, купон endDate, уцінки як near-expiry proxy, кошик, checkoutWebLink).
+5. `docs/LC-BUILD.md` (що будувати) + `docs/LC-PHASES.md` (фази/порядок/acceptance).
+⚠️ docs/01-05,07 — LEGACY meal-planner, НЕ будувати.
 
-**Как действовать (строго по ORCHESTRATOR.md):**
-- Веди `BUILD-STATE.json` (создай, если нет: все фазы `todo`).
-- Бери фазы по графу зависимостей; независимые — параллельно дочерними задачами-воркерами в изолированных git worktree.
-- **Проверяй каждую фазу реальными acceptance-командами** (backend: `php artisan test` + `pint --test` + `php -l`; mobile: `flutter analyze` + `flutter test` + `flutter build`). Красное → верни воркеру лог, ≤2 ретрая.
-- Только после зелёного — коммить в ветку `claude/<фаза>` и **открывай PR**. В `main` напрямую НЕ пушь.
+**Продукт коротко:** агент розбирає бонуси/купони гостя за термінами згорання і збирає персональну пропозицію, де стимул-що-згорає оплачує супер-ціну на його ЗВИЧНИЙ товар (get_my_offline_orders). Killer: економія гостя = скорочення 2 збитків Сільпо. Канали: Telegram-бот + B2B-дашборд. Матчинг — детермінований PHP, LLM лише пояснення.
 
-**Модели:** оркестратор — Opus 5 / high; воркеры — Sonnet 5 / high; фазы `B3` и `B4` — Opus 5 / high. Если выбор модели недоступен — не блокируйся, работай на доступной.
+**Як діяти:** веди BUILD-STATE.json; бери фази з LC-PHASES по залежностях; воркери в гілках `claude/<phase>`; перевіряй реальними acceptance (php artisan test + pint --test + php -l); тільки зелене → PR. У main не пуш. MCP-виклики реальні (порядок з 06: контекст→available slot→products/promotions).
 
-**MCP обязателен:** ключевые фазы должны делать реальные вызовы `mcp.silpo.ua` (не мок навсегда) — иначе проект не проходит условия хакатона. Соблюдай порядок из `06`: сначала resolve контекста (branch → deliveryType → доступный слот), потом products/promotions; матчинг — с ре-ранкингом по категории.
+**Старт:** P0 (scaffold Laravel + laravel/ai+laravel/mcp + telegram-bot-sdk + CI) → одразу P0.1 SPIKE (довести, що пакети проксують OAuth-MCP; інакше raw JSON-RPC фолбек). Паралельно людина готує DEMO-ACC (акаунт з купонами+історією+кошиком). Далі B1→B2→B3(ядро)→B4→T1…
 
-**Старт:** начни с фазы **P0** (scaffold: `api/` Laravel + `composer require laravel/ai laravel/mcp`, `app/` Flutter, CI). Она блокирует остальное. После неё параллель: backend-цепочка (B1→B7) и мобильный каркас (M1→…).
-
-**Отчётность:** после каждой фазы — короткий отчёт: что сделано, какие acceptance прошли, ссылка на PR, что дальше. Не меняй ключевые решения (promotion-first, economy/quality, детерминированное ядро, токены серверно) без моего согласия.
+Після кожної фази — короткий звіт: що зроблено, які acceptance пройдені, лінк на PR, що далі. Ключові рішення не міняй без мого дозволу.
 
 ---

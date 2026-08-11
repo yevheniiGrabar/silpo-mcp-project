@@ -118,3 +118,11 @@ Args: `branchId, deliveryType, timeslotStart, timeslotEnd` (required) + філь
 - ⚠️ Офіційно контекст (branch/deliveryType/timeslot) береться З активного кошика (крок 2). У нас гість обирає філію на майстрі → треба або (а) використати branch кошика, або (б) змінити branch через `update_shopping_cart(branchId=...)`. Вирішити на етапі CartService.
 - ✅ Показувати validations[] і loyalty.bonusAvailable в UI (S6/S7).
 - Для демо checkout: акаунт з активним кошиком (відкрити silpo.ua/застосунок → кошик з'явиться).
+
+## ДОДАТОК (2026-08-11) — стимули для «Останній Шанс» (перевірено наживо)
+- **silpo_get_my_coupons** → `{coupons:[{id, active, useWay:"Електронний", beginDate, endDate, description, limitText}]}`. ✅ Купон МАЄ beginDate/endDate → «перший дедлайн» (згорання) реальний з MCP. На тестовому акаунті знайдено 1 живий купон (endDate 2026-08-17, «на Власний Рахунок», limitText «не діє на самовивіз та доставку»).
+- **silpo_get_loyalty_info** → `{loyalty:{card:{barcode,typeName,memberId}, balance:{total,currency,accounts:[{type:"Regular"},{type:"Moneybox"}]}}}`. Баланс бонусів тут (тест=0).
+- **silpo_get_my_promos / get_promo_codes** → на тесті порожньо (meta.total=0).
+- ⚠️ **silpo_get_my_certificates → 500 Internal Server Error** (баг сервера на цьому акаунті) — обробити фолбеком, не покладатись.
+- **NEAR-EXPIRY PROXY:** `silpo_get_products({...ctx, mustHavePromotion:true, inStock:true, limit:60})` → 57/60 мають реальний `oldPrice`. Найглибші уцінки рахуються як `(oldPrice-price)/oldPrice`: наживо знайдено до −52% (морозиво 289→139), −44% (сир моцарела, згущене молоко). Це і є «другий дедлайн»-proxy для Last-Chance.
+- Матчинг Last-Chance: спарувати купон-що-згорає (get_my_coupons.endDate ≤ N днів) × глибоку уцінку (max disc%) × звичний товар (get_my_offline_orders). На демо-акаунті потрібні непорожні купони+історія.
