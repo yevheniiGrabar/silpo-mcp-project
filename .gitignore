@@ -1,0 +1,14 @@
+# Laravel (api/)
+/api/vendor/
+/api/node_modules/
+/api/.env
+/api/storage/*.key
+/api/public/storage
+# Flutter (app/)
+/app/build/
+/app/.dart_tool/
+/app/.flutter-plugins*
+/app/ios/Pods/
+# misc
+.DS_Store
+*.log

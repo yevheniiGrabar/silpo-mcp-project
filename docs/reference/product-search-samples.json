@@ -1,0 +1,371 @@
+{
+  "молоко": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ed0765c-17fd-69fc-8ff2-dd63763181f9",
+      "name": "Молоко «Галичина» «З чистих Карпат» 2,5%",
+      "price": 46.99,
+      "externalProductId": 716286
+    }
+  },
+  "яйця курячі": {
+    "n": 1,
+    "cheapest": {
+      "id": "1ed0768c-9f75-6530-bc88-eb0bb71c4ffc",
+      "name": "Білок яєчний курячий «Ясенсвіт» пастеризований",
+      "price": 75.89,
+      "externalProductId": 843108
+    }
+  },
+  "борошно пшеничне": {
+    "n": 6,
+    "cheapest": {
+      "id": "1ede47c4-6745-6fd6-9f4a-2bf2a80c66ed",
+      "name": "Висівки пшеничні Сто пудов",
+      "price": 19.99,
+      "externalProductId": 715503
+    }
+  },
+  "хліб": {
+    "n": 23,
+    "cheapest": {
+      "id": "1f08f63c-8ffe-6ab2-b471-c58660d65235",
+      "name": "Хліб Хліб Житомира Щедрий пшеничний нарізаний",
+      "price": 25.99,
+      "externalProductId": 982394
+    }
+  },
+  "лаваш": {
+    "n": 16,
+    "cheapest": {
+      "id": "1edafa1f-9210-6ef0-8989-df42cf4d0987",
+      "name": "Лаваш «Цар Хліб» «Вірменський»",
+      "price": 29.99,
+      "externalProductId": 740536
+    }
+  },
+  "сир вершковий": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ed076ae-984e-6bb8-ae5b-eb0bb71c4ffc",
+      "name": "Сир Комо Традиційний 50% слайси",
+      "price": 99,
+      "externalProductId": 905091
+    }
+  },
+  "філе лосося": {
+    "n": 5,
+    "cheapest": {
+      "id": "1eed29ec-b531-6b96-8042-4b820e9e5d9a",
+      "name": "Сьомга Norven філе холодного копчення",
+      "price": 199,
+      "externalProductId": 885505
+    }
+  },
+  "філе куряче": {
+    "n": 26,
+    "cheapest": {
+      "id": "1f074643-cbdc-626e-be5d-5f52b935ad2e",
+      "name": "Корм для котів Delickcious шматочки з ягнятиною, курячим філе і квасолею в желе",
+      "price": 29.99,
+      "externalProductId": 975717
+    }
+  },
+  "цибуля ріпчаста": {
+    "n": 2,
+    "cheapest": {
+      "id": "1ed075e6-e01a-6a32-844d-dd63763181f9",
+      "name": "Цибуля ріпчаста рання",
+      "price": 32.99,
+      "externalProductId": 128689
+    }
+  },
+  "картопля": {
+    "n": 30,
+    "cheapest": {
+      "id": "1f0322c3-b488-69d4-a7de-41e62aca8d26",
+      "name": "Картопля рання Українська",
+      "price": 14.99,
+      "externalProductId": 993140
+    }
+  },
+  "морква": {
+    "n": 30,
+    "cheapest": {
+      "id": "1efa21ac-53e6-6598-8915-c13d762e18d5",
+      "name": "Приправа PREMIA до моркви по-корейськи",
+      "price": 13.99,
+      "externalProductId": 972384
+    }
+  },
+  "гречка": {
+    "n": 6,
+    "cheapest": {
+      "id": "1ed36552-6cd9-642a-a666-8f05abac3364",
+      "name": "Крупа гречана «Премія»® ядриця швидкорозварювана",
+      "price": 56.99,
+      "externalProductId": 856911
+    }
+  },
+  "булгур": {
+    "n": 21,
+    "cheapest": {
+      "id": "1edafee8-b64a-62da-a92c-c9a9c5f7a57c",
+      "name": "Соус «Чумак» «Бургер» з легкою гостринкою",
+      "price": 24.99,
+      "externalProductId": 819100
+    }
+  },
+  "рис": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ed2dfb8-b204-6952-8097-8f05abac3364",
+      "name": "Рис «Премія»® шліфований круглозернистий",
+      "price": 43.99,
+      "externalProductId": 856918
+    }
+  },
+  "крупа пшенична": {
+    "n": 12,
+    "cheapest": {
+      "id": "1ed07694-9dac-664c-87a7-5f148feebb3f",
+      "name": "Крупа пшенична «Премія»® «Артек»",
+      "price": 28.49,
+      "externalProductId": 856921
+    }
+  },
+  "кава розчинна": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ef6c9f9-cf1c-6ac2-aa03-dd04cb1fe8d1",
+      "name": "Кава розчинна Mioro Coffee сублімована",
+      "price": 4.99,
+      "externalProductId": 966746
+    }
+  },
+  "цукор": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ed07614-0faf-6982-9c35-dd63763181f9",
+      "name": "Цукор ванільний «Повна Чаша»® дрібнокристалічний",
+      "price": 1.94,
+      "externalProductId": 500764
+    }
+  },
+  "сік": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ee02587-9bb9-6310-815f-3ba125f7a555",
+      "name": "Сік Садочок персик-яблуко з м'якоттю",
+      "price": 19.99,
+      "externalProductId": 929202
+    }
+  },
+  "гель для душу": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ef448ca-96a0-64d0-b755-6f660dae0316",
+      "name": "Гель для душа STR8 Game",
+      "price": 79,
+      "externalProductId": 959651
+    }
+  },
+  "майонез": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ed076a5-2022-663e-ac1e-5f148feebb3f",
+      "name": "Соус «Повна Чаша»® «Салатний» майонезний 30%",
+      "price": 10.99,
+      "externalProductId": 882605
+    }
+  },
+  "кетчуп": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ef6b0d9-c208-6482-b550-dd04cb1fe8d1",
+      "name": "Кетчуп PREMIA для дітей від трьох років",
+      "price": 25.99,
+      "externalProductId": 967683
+    }
+  },
+  "соус бургерний": {
+    "n": 5,
+    "cheapest": {
+      "id": "1edafee8-b64a-62da-a92c-c9a9c5f7a57c",
+      "name": "Соус «Чумак» «Бургер» з легкою гостринкою",
+      "price": 24.99,
+      "externalProductId": 819100
+    }
+  },
+  "олія соняшникова": {
+    "n": 11,
+    "cheapest": {
+      "id": "1ed07690-97dd-6abc-a6d7-eb0bb71c4ffc",
+      "name": "Тунець «Повна Чаша»® подрібнений в соняшниковій олії",
+      "price": 56.99,
+      "externalProductId": 851997
+    }
+  },
+  "оцет": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ed1ba8d-5f2b-63bc-89b8-ef978c4a0ae5",
+      "name": "Оцет столовий для консервації 9%",
+      "price": 21.99,
+      "externalProductId": 734627
+    }
+  },
+  "сир твердий": {
+    "n": 30,
+    "cheapest": {
+      "id": "1f1499db-876d-6ecc-a526-19dbc2d51df5",
+      "name": "Сир Пирятин Мааздам твердий нарізаний скибочки 45%",
+      "price": 83.49,
+      "externalProductId": 1024559
+    }
+  },
+  "ковбаса варена": {
+    "n": 30,
+    "cheapest": {
+      "id": "1edef7dc-86d5-6a86-bd48-275c1221fbaf",
+      "name": "Ковбаса Алан Молочна варена в/ґ, нарізка",
+      "price": 63.99,
+      "externalProductId": 923842
+    }
+  },
+  "ковбаса копчена": {
+    "n": 30,
+    "cheapest": {
+      "id": "1f11824c-fac0-65e0-a75b-1f330489249b",
+      "name": "Ковбаса Ситий двір Салямі Браун н/к 1 ґ",
+      "price": 29.99,
+      "externalProductId": 1018465
+    }
+  },
+  "шоколад": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ed24909-8830-6860-a2b0-73941e442d1a",
+      "name": "Шоколад Milka зі шматочками печива Oreo",
+      "price": 28.99,
+      "externalProductId": 799106
+    }
+  },
+  "цукерки": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ef6c9f9-e67a-6246-9ede-dd04cb1fe8d1",
+      "name": "Цукерки Vidal Rolla belta Strawberry желейні",
+      "price": 27.99,
+      "externalProductId": 967756
+    }
+  },
+  "кока-кола": {
+    "n": 30,
+    "cheapest": {
+      "id": "1efa3ac7-abac-60f0-bfbf-c13d762e18d5",
+      "name": "Корм для котів Club 4 Paws Premium з лососем в желе",
+      "price": 12.99,
+      "externalProductId": 972554
+    }
+  },
+  "спрайт": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ed075d5-7d7a-69ce-8998-dd63763181f9",
+      "name": "Напій Sprite",
+      "price": 31.99,
+      "externalProductId": 666
+    }
+  },
+  "фанта": {
+    "n": 12,
+    "cheapest": {
+      "id": "1ed075df-69d7-6ad4-a698-dd63763181f9",
+      "name": "Напій Fanta Orange з/б",
+      "price": 32.99,
+      "externalProductId": 50118
+    }
+  },
+  "пиво": {
+    "n": 30,
+    "cheapest": {
+      "id": "1eeec941-8a91-6c60-b35e-a1ba381c8cf5",
+      "name": "Пиво Senor Cartel світле з/б",
+      "price": 32.99,
+      "externalProductId": 950958
+    }
+  },
+  "чіпси": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ede08e8-d062-619c-bb16-dda742a61c91",
+      "name": "Чипси яблучні «Премія»® з кислинкою",
+      "price": 48.99,
+      "externalProductId": 922331
+    }
+  },
+  "сидр": {
+    "n": 30,
+    "cheapest": {
+      "id": "1edd58de-4c71-6bfe-8627-b11b92e6bdc1",
+      "name": "Сидр Apps чорна смородина-лаванда солодкий газований з/б",
+      "price": 43.49,
+      "externalProductId": 923682
+    }
+  },
+  "вино": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ed0761f-6a83-6ee8-a80e-dd63763181f9",
+      "name": "Вино ігристе Canella Prosecco Doc",
+      "price": 179,
+      "externalProductId": 539478
+    }
+  },
+  "коньяк": {
+    "n": 30,
+    "cheapest": {
+      "id": "1f0af9b0-3532-62a4-9159-9992f337b3cd",
+      "name": "Напій алкогольний Легка рука Select 3 зірки",
+      "price": 48.99,
+      "externalProductId": 1007137
+    }
+  },
+  "ром": {
+    "n": 30,
+    "cheapest": {
+      "id": "1edb8aeb-0bc6-6a86-b1bf-d36c520fec5e",
+      "name": "Ром Havana Club 7 років",
+      "price": 99,
+      "externalProductId": 794093
+    }
+  },
+  "бренді": {
+    "n": 30,
+    "cheapest": {
+      "id": "1f1075f1-ec19-620c-af20-dbea066f0827",
+      "name": "Бренді Aznauri VS 3 роки",
+      "price": 56.99,
+      "externalProductId": 1016144
+    }
+  },
+  "віскі": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ed0765b-d4f6-6db6-91a6-c1af87aa927f",
+      "name": "Віскі Jack Daniel's",
+      "price": 77.49,
+      "externalProductId": 716864
+    }
+  },
+  "оливки": {
+    "n": 30,
+    "cheapest": {
+      "id": "1ed07672-3742-66c6-beac-c1af87aa927f",
+      "name": "Оливки Olymp з лавандою і травами в'ялені чорні",
+      "price": 49.99,
+      "externalProductId": 762478
+    }
+  }
+}
