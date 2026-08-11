@@ -11,9 +11,11 @@
 
 ## MCP транспорт
 - Endpoint: `POST https://mcp.silpo.ua/mcp`, JSON-RPC 2.0, `Accept: application/json, text/event-stream`.
+- **serverInfo:** `silpo-mcp-service` **v1.107.2** (станом на 2026-08-11, перевірено через tools/list).
 - Хендшейк: `initialize` → `notifications/initialized` → далі `tools/list` / `tools/call`.
 - Protocol version, що спрацював: `2025-06-18`. Сесія — через заголовок `Mcp-Session-Id` (сервер повертає, клієнт віддає назад).
 - `tools/call` формат: `{"name":"silpo_<tool>","arguments":{...}}`. Результат — у `result.content[].text` (JSON-рядок).
+- **Підключення клієнта:** офіційна дока Сільпо — для Claude Desktop додати `{"silpo":{"url":"https://mcp.silpo.ua/mcp"}}` у `mcpServers` (форма `url` підтримується, OAuth-браузер підніметься сам); для Claude Code — `claude mcp add --transport http silpo https://mcp.silpo.ua/mcp`.
 
 ## ⚠️ Назви інструментів мають префікс `silpo_`
 У доці бували без префікса — насправді **`silpo_get_promotions`, `silpo_find_products_batch`, `silpo_list_branches`** тощо. 39 tools підтверджено.
@@ -40,7 +42,8 @@
 **silpo_get_promotions** → `{success, summary:"Found 9 active promotions", promotions:[{code, title, productCount, url}]}`
 Приклад реальних акцій: «Цінотижики» (572 товари), «Гуртом дешевше» (662), «Тільки Онлайн» (1604), «Купуй та заощаджуй» (4). ➡️ Це **колекції акцій**, не окремі товари — далі треба тягнути товари колекції (через `silpo_get_products` з фільтром промо / `url`).
 
-**silpo_find_products_batch** args: `{branchId, deliveryType, timeslotStart, timeslotEnd, products:[string]≤30, limit?}` → `{success, queries:[{query, totalFound, products:[{id, name, slug, price, oldPrice, stock, available, image, weighted, step, externalProductId}]}]}`
+**silpo_find_products_batch** args: `{branchId, deliveryType, timeslotStart, timeslotEnd, products, limit?}` → `{success, queries:[{query, totalFound, products:[{id, name, slug, price, oldPrice, stock, available, image, weighted, step, externalProductId}]}]}`
+- ⚠️ `products` (макс 30 запитів): у schema — **масив рядків** (`["молоко","рис"]`, перевірено, працює), але офіційний опис tool каже «semicolon-separated» — тобто приймається і рядок з `;` (`"молоко;рис"`). Обидві форми ок; у коді використовуємо масив.
 - `oldPrice != null` → товар зі знижкою (є що показати як акцію).
 - **Ранжування недосконале:** `рис` → першим преміум ризото (Riso Gallo/Cordero); `цибуля` → першою зелена цибуля 529₴. ➡️ **Підтверджує потребу в детермінованому ре-ранкінгу** (релевантність назви × ціна × промо × наявність) — саме це робить ProductMatchingService (top-3 + confidence). Не довіряти першому результату наосліп.
 
