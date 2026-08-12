@@ -13,6 +13,9 @@
 8. **`docs/07-BUILD-ORCHESTRATION.md`** — фази, залежності, acceptance, verify-then-push.
 9. **`docs/09-EXTRAS.md`** — калорійність, заміна страв, freemium-підписка (нові фічі).
 
+## ⚡ РЕКОМЕНДОВАНО для хакатону — легкий агент
+- **`docs/AGENT-LITE-PLAN.md`** — тонкий розмовний агент (Claude Agent SDK + Silpo MCP + Telegram + планувальник тригерів). Менше коду, швидше demo. Важкий Laravel+Flutter (docs 00-09) = product/vision.
+
 ## Мультиагентна збірка
 - **`KICKOFF.md`** — старт (коннектори + готовий промпт для Cowork/Dispatch).
 - **`ORCHESTRATOR.md`** — промпт головного агента: воркери → verify → PR у `claude/*`.
