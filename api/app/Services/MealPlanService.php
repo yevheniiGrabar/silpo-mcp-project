@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\Agents\MealPlannerAgent;
+use App\Models\CartItem;
 use App\Models\MealPlan;
 use App\Models\User;
 use App\Repositories\MealPlanRepository;
@@ -75,8 +76,18 @@ class MealPlanService
                 flexPct: $plan->budget_flex_pct,
             );
 
-            // 5) Персист.
-            $this->plans->replaceItems($plan, array_map($this->toItemAttributes(...), $result['items']));
+            // 5) Персист (з альтернативами для swap).
+            $byIngredient = collect($candidates)->groupBy('ingredient');
+            $items = array_map(function (Candidate $c) use ($byIngredient) {
+                $alts = $byIngredient->get($c->ingredient, collect())
+                    ->reject(fn (Candidate $x) => $x->sku === $c->sku)
+                    ->map($this->altShape(...))
+                    ->values()->all();
+
+                return $this->toItemAttributes($c) + ['alt_options' => $alts];
+            }, $result['items']);
+
+            $this->plans->replaceItems($plan, $items);
             $this->plans->saveResult($plan, $result, $menu);
 
             return $plan->fresh('items');
@@ -101,6 +112,61 @@ class MealPlanService
         }
 
         return array_keys($names);
+    }
+
+    /**
+     * Замінити позицію кошика на одну з альтернатив (alt_options) і перерахувати економію.
+     */
+    public function swapItem(MealPlan $plan, CartItem $item, string $sku): MealPlan
+    {
+        $alts = collect($item->alt_options ?? []);
+        $target = $alts->firstWhere('sku', $sku);
+
+        if ($target === null) {
+            throw new \InvalidArgumentException('Альтернативу не знайдено');
+        }
+
+        // Поточна позиція стає альтернативою (щоб можна було повернути назад).
+        $previous = [
+            'sku' => $item->silpo_product_id,
+            'title' => $item->title,
+            'price' => $item->price,
+            'is_promo' => $item->is_promo,
+            'is_private_label' => $item->is_private_label,
+            'confidence' => $item->match_confidence,
+        ];
+
+        $this->plans->updateItem($item, [
+            'silpo_product_id' => $target['sku'],
+            'title' => $target['title'],
+            'price' => $target['price'],
+            'price_total' => (int) $target['price'] * $item->qty,
+            'is_promo' => $target['is_promo'] ?? false,
+            'is_private_label' => $target['is_private_label'] ?? false,
+            'match_confidence' => $target['confidence'] ?? 1,
+            'alt_options' => $alts->reject(fn ($a) => $a['sku'] === $sku)->push($previous)->values()->all(),
+        ]);
+
+        // Перерахунок економії.
+        $optimized = $this->plans->sumItemsTotal($plan);
+        $this->plans->update($plan, [
+            'optimized_total' => $optimized,
+            'savings' => max(0, ($plan->naive_total ?? $optimized) - $optimized),
+        ]);
+
+        return $plan->fresh('items');
+    }
+
+    private function altShape(Candidate $c): array
+    {
+        return [
+            'sku' => $c->sku,
+            'title' => $c->title,
+            'price' => $c->price,
+            'is_promo' => $c->isPromo,
+            'is_private_label' => $c->isPrivateLabel,
+            'confidence' => $c->confidence,
+        ];
     }
 
     private function toItemAttributes(Candidate $c): array

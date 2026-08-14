@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreMealPlanRequest;
+use App\Http\Requests\SwapItemRequest;
 use App\Http\Resources\MealPlanResource;
 use App\Jobs\GenerateMealPlanJob;
 use App\Models\User;
@@ -41,6 +42,28 @@ class MealPlanController extends Controller
         return $plan
             ? new MealPlanResource($plan)
             : response()->json(['message' => 'Not found'], 404);
+    }
+
+    /** POST /api/meal-plans/{id}/items/{item}/swap — замінити позицію на альтернативу. */
+    public function swap(int $id, int $item, SwapItemRequest $request): MealPlanResource|JsonResponse
+    {
+        $plan = $this->plans->find($id);
+        if (! $plan) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+
+        $cartItem = $this->plans->findItem($plan, $item);
+        if (! $cartItem) {
+            return response()->json(['message' => 'Item not found'], 404);
+        }
+
+        try {
+            $plan = $this->service->swapItem($plan, $cartItem, $request->validated()['sku']);
+
+            return new MealPlanResource($plan);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
     }
 
     /** POST /api/meal-plans/{id}/checkout — зібрати кошик у Сільпо → checkout-лінк. */

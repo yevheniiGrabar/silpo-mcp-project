@@ -54,4 +54,23 @@ class MealPlanRepository
     {
         return $plan->items()->whereKey($itemId)->first();
     }
+
+    public function updateItem(CartItem $item, array $attrs): CartItem
+    {
+        $item->update($attrs);
+
+        return $item;
+    }
+
+    public function update(MealPlan $plan, array $attrs): MealPlan
+    {
+        $plan->update($attrs);
+
+        return $plan;
+    }
+
+    public function sumItemsTotal(MealPlan $plan): int
+    {
+        return (int) $plan->items()->sum('price_total');
+    }
 }
