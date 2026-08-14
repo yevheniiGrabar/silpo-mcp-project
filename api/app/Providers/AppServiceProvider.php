@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\Silpo\SilpoTokenProvider;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Mcp\Client;
 use Laravel\Mcp\Facades\Mcp;
@@ -22,9 +23,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Єдина точка доступу до Сільпо: іменований MCP-клієнт 'silpo'.
-        // Токен: у демо — SILPO_DEMO_TOKEN; у проді підмінюємо на per-user OAuth
-        // токен із silpo_tokens (див. TokenProvider, фаза B2).
+        // ->withOAuth(): потрібен для OAuth-дансу (connect/callback у routes/ai.php),
+        //   public client + DCR + PKCE (усе всередині laravel/mcp).
+        // ->withToken(): bearer для звичайних викликів tools/callTool — токен із
+        //   silpo_tokens залогіненого юзера, або SILPO_DEMO_TOKEN для CLI/демо.
         Mcp::registerClient('silpo', fn () => Client::web(config('services.silpo.mcp_url'))
-            ->withToken(fn () => (string) config('services.silpo.demo_token')));
+            ->withOAuth()
+            ->withToken(fn () => app(SilpoTokenProvider::class)->currentAccessToken()));
     }
 }
