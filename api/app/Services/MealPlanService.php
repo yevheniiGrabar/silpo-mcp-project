@@ -9,6 +9,7 @@ use App\Repositories\MealPlanRepository;
 use App\Services\Budget\BudgetOptimizerService;
 use App\Services\Budget\Candidate;
 use App\Services\Silpo\ProductMatchingService;
+use App\Services\Silpo\SilpoContextService;
 use Throwable;
 
 /**
@@ -22,11 +23,13 @@ class MealPlanService
         private readonly MealPlanRepository $plans,
         private readonly ProductMatchingService $matching,
         private readonly BudgetOptimizerService $optimizer,
+        private readonly SilpoContextService $context,
     ) {}
 
-    public function generate(User $user, array $dto): MealPlan
+    /** Створити план у статусі pending (без важкої генерації). */
+    public function create(User $user, array $dto): MealPlan
     {
-        $plan = $this->plans->create($user, [
+        return $this->plans->create($user, [
             'branch_id' => $dto['branch_id'] ?? null,
             'budget' => $dto['budget'],
             'people' => $dto['people'] ?? 2,
@@ -37,8 +40,20 @@ class MealPlanService
             'max_cook_minutes' => $dto['max_cook_minutes'] ?? 60,
             'allergies' => $dto['allergies'] ?? [],
             'currency' => 'UAH',
-            'status' => 'generating',
+            'status' => 'pending',
         ]);
+    }
+
+    /** Синхронно (тести/демо): створити + одразу згенерувати. */
+    public function generate(User $user, array $dto): MealPlan
+    {
+        return $this->run($this->create($user, $dto));
+    }
+
+    /** Важка генерація на існуючому плані (викликається з GenerateMealPlanJob). */
+    public function run(MealPlan $plan): MealPlan
+    {
+        $this->plans->markStatus($plan, 'generating');
 
         try {
             // 1) Агент будує меню (сам читає акції/профіль через MCP-tools).
@@ -118,13 +133,9 @@ class MealPlanService
         TXT;
     }
 
-    /** {branchId, deliveryType, timeslotStart, timeslotEnd} — див. docs/06 (обов'язково). */
+    /** {branchId, deliveryType, timeslotStart, timeslotEnd} — резолв через ContextService (docs/06). */
     private function deliveryContext(MealPlan $p): array
     {
-        // TODO(B4.1): резолвити через silpo_get_available_delivery_types + silpo_get_time_slots
-        // і брати слот з available:true. Поки — мінімальний контекст із branchId.
-        return array_filter([
-            'branchId' => $p->branch_id,
-        ]);
+        return $this->context->resolve($p->branch_id);
     }
 }

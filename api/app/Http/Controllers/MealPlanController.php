@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreMealPlanRequest;
 use App\Http\Resources\MealPlanResource;
+use App\Jobs\GenerateMealPlanJob;
 use App\Models\User;
 use App\Repositories\MealPlanRepository;
 use App\Services\MealPlanService;
@@ -19,12 +20,17 @@ class MealPlanController extends Controller
         private readonly MealPlanRepository $plans,
     ) {}
 
-    /** POST /api/meal-plans — згенерувати меню тижня (демо: синхронно). */
-    public function store(StoreMealPlanRequest $request): MealPlanResource
+    /** POST /api/meal-plans — створити план і поставити генерацію в чергу (202). */
+    public function store(StoreMealPlanRequest $request): JsonResponse
     {
-        $plan = $this->service->generate($this->currentUser(), $request->validated());
+        $plan = $this->service->create($this->currentUser(), $request->validated());
 
-        return new MealPlanResource($plan->loadMissing('items'));
+        GenerateMealPlanJob::dispatch($plan->id);
+
+        return (new MealPlanResource($plan))
+            ->additional(['poll' => "/api/meal-plans/{$plan->id}"])
+            ->response()
+            ->setStatusCode(202);
     }
 
     /** GET /api/meal-plans/{id} — статус + меню + кошик. */

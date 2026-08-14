@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\Silpo\ProductMatchingService;
+use App\Services\Silpo\SilpoClient;
 use App\Services\Silpo\SilpoProduct;
 use PHPUnit\Framework\TestCase;
 
@@ -10,7 +11,7 @@ class ProductMatchingTest extends TestCase
 {
     public function test_reranking_puts_relevant_product_first_and_demotes_blocklisted(): void
     {
-        $svc = new ProductMatchingService;
+        $svc = new ProductMatchingService(new SilpoClient);
 
         $products = [
             new SilpoProduct('p1', 'Молочний шоколад Millennium', 30),       // блок-лист (шоколад)
@@ -28,7 +29,7 @@ class ProductMatchingTest extends TestCase
 
     public function test_cheaper_relevant_wins_on_tie(): void
     {
-        $svc = new ProductMatchingService;
+        $svc = new ProductMatchingService(new SilpoClient);
 
         $products = [
             new SilpoProduct('rice-premium', 'Рис довгозернистий', 60),

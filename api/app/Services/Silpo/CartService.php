@@ -4,7 +4,6 @@ namespace App\Services\Silpo;
 
 use App\Models\MealPlan;
 use Illuminate\Support\Facades\Log;
-use Laravel\Mcp\Facades\Mcp;
 use RuntimeException;
 
 /**
@@ -15,24 +14,24 @@ use RuntimeException;
  */
 class CartService
 {
+    public function __construct(private readonly SilpoClient $silpo) {}
+
     public function checkout(MealPlan $plan): array
     {
-        $client = Mcp::client('silpo');
-
         // 1) Активний кошик гостя (обов'язково перший крок).
-        $cart = $this->content($client->callTool('silpo_get_my_shopping_cart'));
+        $cart = $this->content($this->silpo->call('silpo_get_my_shopping_cart'));
         $cartId = $cart['id'] ?? $cart['shoppingCartId'] ?? null;
         if (! $cartId) {
             throw new RuntimeException('Немає активного кошика Сільпо (створюється на боці Сільпо).');
         }
 
         // 2) Контекст кошика (branch/deliveryType/timeslot).
-        $ctx = $this->content($client->callTool('silpo_get_shopping_cart_by_id', ['shoppingCartId' => $cartId]));
+        $ctx = $this->content($this->silpo->call('silpo_get_shopping_cart_by_id', ['shoppingCartId' => $cartId]));
         $branchId = $ctx['branchId'] ?? $plan->branch_id;
         $companyId = $ctx['companyId'] ?? null;
 
         if ($plan->branch_id && $plan->branch_id !== ($ctx['branchId'] ?? null)) {
-            $client->callTool('silpo_update_shopping_cart', ['shoppingCartId' => $cartId, 'branchId' => $plan->branch_id]);
+            $this->silpo->call('silpo_update_shopping_cart', ['shoppingCartId' => $cartId, 'branchId' => $plan->branch_id]);
             $branchId = $plan->branch_id;
         }
 
@@ -44,14 +43,14 @@ class CartService
             'quantity' => $i->qty,
         ], fn ($v) => $v !== null))->values()->all();
 
-        $client->callTool('silpo_add_or_update_cart_products', [
+        $this->silpo->call('silpo_add_or_update_cart_products', [
             'shoppingCartId' => $cartId,
             'products' => $products,
         ]);
         Log::channel('silpo-mcp')->info('add_or_update_cart_products', ['cartId' => $cartId, 'count' => count($products)]);
 
         // 4) Фінальний стан кошика → checkout-лінки.
-        $final = $this->content($client->callTool('silpo_get_shopping_cart_by_id', ['shoppingCartId' => $cartId]));
+        $final = $this->content($this->silpo->call('silpo_get_shopping_cart_by_id', ['shoppingCartId' => $cartId]));
 
         return [
             'checkout_web' => $final['checkoutWebLink'] ?? null,

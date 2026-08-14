@@ -9,6 +9,7 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 // Меню тижня (демо: без auth, резолвимо demo-юзера; у проді — auth:sanctum).
-Route::post('/meal-plans', [MealPlanController::class, 'store']);
+// Генерація — дорогий ендпоінт → rate-limit.
+Route::post('/meal-plans', [MealPlanController::class, 'store'])->middleware('throttle:10,1');
 Route::get('/meal-plans/{id}', [MealPlanController::class, 'show']);
-Route::post('/meal-plans/{id}/checkout', [MealPlanController::class, 'checkout']);
+Route::post('/meal-plans/{id}/checkout', [MealPlanController::class, 'checkout'])->middleware('throttle:20,1');

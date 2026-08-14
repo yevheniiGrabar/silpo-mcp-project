@@ -3,8 +3,6 @@
 namespace App\Services\Silpo;
 
 use App\Services\Budget\Candidate;
-use Illuminate\Support\Facades\Log;
-use Laravel\Mcp\Facades\Mcp;
 
 /**
  * Детермінований матчинг «інгредієнт → SKU» (НЕ LLM). Сирий пошук Сільпо
@@ -13,6 +11,8 @@ use Laravel\Mcp\Facades\Mcp;
  */
 class ProductMatchingService
 {
+    public function __construct(private readonly SilpoClient $silpo) {}
+
     /** Слова, що майже завжди означають нерелевантний товар для базового інгредієнта. */
     private const BLOCK = ['шоколад', 'цукерк', 'корм', 'десерт', 'морозиво', 'печиво', 'сік ', 'напій'];
 
@@ -81,12 +81,9 @@ class ProductMatchingService
     {
         $out = [];
         foreach (array_chunk($ingredients, 30) as $batch) {
-            $res = Mcp::client('silpo')->callTool('silpo_find_products_batch', array_merge($ctx, [
+            $res = $this->silpo->call('silpo_find_products_batch', array_merge($ctx, [
                 'products' => $batch,
             ]));
-            Log::channel('silpo-mcp')->info('find_products_batch', [
-                'count' => count($batch), 'isError' => $res->isError,
-            ]);
 
             $grouped = $this->parse($res->structuredContent ?? []);
             foreach ($batch as $ingredient) {
