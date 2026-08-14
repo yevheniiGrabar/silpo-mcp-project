@@ -10,6 +10,7 @@ use App\Repositories\MealPlanRepository;
 use App\Services\Budget\BudgetOptimizerService;
 use App\Services\Budget\Candidate;
 use App\Services\Silpo\ProductMatchingService;
+use App\Services\Silpo\SilpoClient;
 use App\Services\Silpo\SilpoContextService;
 use Throwable;
 
@@ -25,6 +26,7 @@ class MealPlanService
         private readonly ProductMatchingService $matching,
         private readonly BudgetOptimizerService $optimizer,
         private readonly SilpoContextService $context,
+        private readonly SilpoClient $silpo,
     ) {}
 
     /** Створити план у статусі pending (без важкої генерації). */
@@ -57,6 +59,13 @@ class MealPlanService
         $this->plans->markStatus($plan, 'generating');
 
         try {
+            // 0) Реальна філія Сільпо (застосунок може не знати branchId).
+            $branchId = $this->resolveBranchId($plan->branch_id);
+            if ($branchId !== null && $branchId !== $plan->branch_id) {
+                $this->plans->update($plan, ['branch_id' => $branchId]);
+                $plan->refresh();
+            }
+
             // 1) Агент будує меню (сам читає акції/профіль через MCP-tools).
             $menu = (new MealPlannerAgent)->prompt($this->userPrompt($plan));
             $menu = is_array($menu) ? $menu : (array) $menu;
@@ -203,5 +212,31 @@ class MealPlanService
     private function deliveryContext(MealPlan $p): array
     {
         return $this->context->resolve($p->branch_id);
+    }
+
+    /**
+     * Реальний branchId Сільпо. Якщо застосунок прислав пусто/не-числовий id
+     * (напр. 'silpo') — беремо першу доступну філію зі silpo_list_branches.
+     */
+    private function resolveBranchId(?string $given): ?string
+    {
+        if ($given !== null && ctype_digit($given)) {
+            return $given; // вже схоже на реальний id
+        }
+
+        try {
+            $raw = $this->silpo->call('silpo_list_branches')->structuredContent ?? [];
+            $list = $raw['branches'] ?? $raw['results'] ?? $raw;
+            if (is_array($list) && $list !== []) {
+                $first = reset($list);
+                $id = is_array($first) ? ($first['id'] ?? $first['branchId'] ?? null) : null;
+
+                return $id !== null ? (string) $id : $given;
+            }
+        } catch (Throwable) {
+            // Silpo недоступний/не залогінено — лишаємо як є (впаде вище з 401).
+        }
+
+        return $given;
     }
 }
