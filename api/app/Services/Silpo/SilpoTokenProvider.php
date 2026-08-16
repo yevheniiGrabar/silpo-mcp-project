@@ -16,6 +16,7 @@ class SilpoTokenProvider
     /** Токен для поточного контексту (для withToken(...) у зареєстрованому клієнті). */
     public function currentAccessToken(): string
     {
+        // 1) Залогінений через Sanctum юзер.
         if (Auth::check()) {
             $token = $this->forUser(Auth::user());
             if ($token !== null) {
@@ -23,6 +24,17 @@ class SilpoTokenProvider
             }
         }
 
+        // 2) Демо/неавторизований контекст (веб-демо, CLI silpo:ping, черга):
+        //    беремо токен demo-юзера, збережений після OAuth-логіну Сільпо.
+        $demo = User::where('email', 'demo@mealize.app')->first();
+        if ($demo !== null) {
+            $token = $this->forUser($demo);
+            if ($token !== null) {
+                return $token;
+            }
+        }
+
+        // 3) Останній фолбек — статичний токен з .env (якщо заданий).
         return (string) config('services.silpo.demo_token', '');
     }
 
