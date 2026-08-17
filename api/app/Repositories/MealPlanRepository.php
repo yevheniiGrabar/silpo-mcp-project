@@ -6,6 +6,7 @@ use App\Models\CartItem;
 use App\Models\MealPlan;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Уся робота з Eloquent для меню/кошика (архітектурне правило: БД лише тут).
@@ -45,9 +46,12 @@ class MealPlanRepository
     /** @param  array<int, array<string, mixed>>  $items */
     public function replaceItems(MealPlan $plan, array $items): Collection
     {
-        $plan->items()->delete();
+        return DB::transaction(function () use ($plan, $items) {
+            $plan->items()->delete();
+            $plan->items()->createMany($items);
 
-        return collect($items)->map(fn (array $attrs) => $plan->items()->create($attrs));
+            return $plan->items()->get();
+        });
     }
 
     public function findItem(MealPlan $plan, int $itemId): ?CartItem

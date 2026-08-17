@@ -13,6 +13,7 @@ use App\Services\Silpo\MatchMemory;
 use App\Services\Silpo\ProductMatchingService;
 use App\Services\Silpo\SilpoClient;
 use App\Services\Silpo\SilpoContextService;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
@@ -212,27 +213,29 @@ class MealPlanService
             'confidence' => $item->match_confidence,
         ];
 
-        $this->plans->updateItem($item, [
-            'silpo_product_id' => $target['sku'],
-            'title' => $target['title'],
-            'price' => $target['price'],
-            'old_price' => $target['old_price'] ?? null,
-            'price_total' => (int) $target['price'] * $item->qty,
-            'is_promo' => $target['is_promo'] ?? false,
-            'is_private_label' => $target['is_private_label'] ?? false,
-            'match_confidence' => $target['confidence'] ?? 1,
-            'alt_options' => $alts->reject(fn ($a) => $a['sku'] === $sku)->push($previous)->values()->all(),
-        ]);
+        // BE-1: заміна позиції + перерахунок економії — атомарно.
+        DB::transaction(function () use ($plan, $item, $target, $alts, $sku, $previous) {
+            $this->plans->updateItem($item, [
+                'silpo_product_id' => $target['sku'],
+                'title' => $target['title'],
+                'price' => $target['price'],
+                'old_price' => $target['old_price'] ?? null,
+                'price_total' => (int) $target['price'] * $item->qty,
+                'is_promo' => $target['is_promo'] ?? false,
+                'is_private_label' => $target['is_private_label'] ?? false,
+                'match_confidence' => $target['confidence'] ?? 1,
+                'alt_options' => $alts->reject(fn ($a) => $a['sku'] === $sku)->push($previous)->values()->all(),
+            ]);
 
-        // Навчання матчингу: запам'ятати вибір користувача для цього інгредієнта.
+            $optimized = $this->plans->sumItemsTotal($plan);
+            $this->plans->update($plan, [
+                'optimized_total' => $optimized,
+                'savings' => max(0, ($plan->naive_total ?? $optimized) - $optimized),
+            ]);
+        });
+
+        // Навчання матчингу (поза транзакцією — не критично до атомарності).
         $this->matchMemory->remember($item->ingredient, (string) $target['sku'], (string) $target['title']);
-
-        // Перерахунок економії.
-        $optimized = $this->plans->sumItemsTotal($plan);
-        $this->plans->update($plan, [
-            'optimized_total' => $optimized,
-            'savings' => max(0, ($plan->naive_total ?? $optimized) - $optimized),
-        ]);
 
         return $plan->fresh('items');
     }
