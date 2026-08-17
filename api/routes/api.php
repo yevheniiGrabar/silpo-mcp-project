@@ -28,6 +28,7 @@ Route::get('/home', [HomeController::class, 'index']);
 Route::post('/meal-plans', [MealPlanController::class, 'store'])->middleware('throttle:10,1');
 Route::get('/meal-plans/{id}', [MealPlanController::class, 'show']);
 Route::post('/meal-plans/{id}/items/{item}/swap', [MealPlanController::class, 'swap']);
+Route::post('/meal-plans/{id}/shopping-days', [MealPlanController::class, 'shoppingDays'])->middleware('throttle:30,1');
 Route::post('/meal-plans/{id}/checkout', [MealPlanController::class, 'checkout'])->middleware('throttle:20,1');
 
 // Аналітика + збір подій історії (покупки / лог їжі).

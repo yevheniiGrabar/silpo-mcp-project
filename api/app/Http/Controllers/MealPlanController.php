@@ -11,6 +11,7 @@ use App\Services\MealPlanService;
 use App\Services\Silpo\CartService;
 use App\Support\ResolvesCurrentUser;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class MealPlanController extends Controller
 {
@@ -64,6 +65,22 @@ class MealPlanController extends Controller
         } catch (\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
+    }
+
+    /** POST /api/meal-plans/{id}/shopping-days — перезібрати список на N перших днів. */
+    public function shoppingDays(int $id, Request $request): MealPlanResource|JsonResponse
+    {
+        $data = $request->validate(['days' => ['required', 'integer', 'min:1', 'max:7']]);
+
+        $plan = $this->plans->findForUser($this->currentUser(), $id);
+        if (! $plan) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+        if (empty($plan->plan_json['days'])) {
+            return response()->json(['message' => 'Меню ще не готове'], 422);
+        }
+
+        return new MealPlanResource($this->service->rebuildCart($plan, $plan->plan_json, $data['days']));
     }
 
     /** POST /api/meal-plans/{id}/checkout — зібрати кошик у Сільпо → checkout-лінк. */

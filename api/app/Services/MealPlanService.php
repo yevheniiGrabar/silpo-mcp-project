@@ -97,10 +97,16 @@ class MealPlanService
      * Матчинг + оптимізатор + ужим під бюджет → кошик і тотали для готового меню.
      * Використовується і повною генерацією (run), і заміною однієї страви (swap_meal).
      */
-    public function rebuildCart(MealPlan $plan, array $menu): MealPlan
+    public function rebuildCart(MealPlan $plan, array $menu, ?int $days = null): MealPlan
     {
-        // Агрегуємо інгредієнти по всьому тижню (із сумарними к-стями).
-        $ingredients = $this->aggregateIngredients($menu);
+        // Горизонт покупок: список лише на перші $days днів (меню лишається на тиждень).
+        $scopedMenu = $menu;
+        if ($days !== null && $days > 0) {
+            $scopedMenu['days'] = array_slice($menu['days'] ?? [], 0, $days);
+        }
+
+        // Агрегуємо інгредієнти за обраний горизонт (із сумарними к-стями).
+        $ingredients = $this->aggregateIngredients($scopedMenu);
         $needByName = [];
         foreach ($ingredients as $ing) {
             $needByName[$ing['name']] = ['qty' => (float) $ing['qty'], 'unit' => (string) $ing['unit']];
@@ -153,7 +159,10 @@ class MealPlanService
         $result['within_budget'] = $optimized <= (int) $result['effective_limit'];
 
         $this->plans->replaceItems($plan, $items);
-        $this->plans->saveResult($plan, $result, $menu);
+        $this->plans->saveResult($plan, $result, $menu); // зберігаємо ПОВНЕ меню на тиждень
+        if ($days !== null) {
+            $this->plans->update($plan, ['shopping_days' => $days]);
+        }
 
         return $plan->fresh('items');
     }

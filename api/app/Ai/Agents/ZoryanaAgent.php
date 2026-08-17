@@ -4,6 +4,7 @@ namespace App\Ai\Agents;
 
 use App\Ai\Tools\GetMyPlanTool;
 use App\Ai\Tools\GetTodayDiaryTool;
+use App\Ai\Tools\ShoppingDaysTool;
 use App\Ai\Tools\StartMenuGenerationTool;
 use App\Ai\Tools\SwapMealTool;
 use App\Models\User;
@@ -42,6 +43,7 @@ class ZoryanaAgent implements Agent, HasTools
             new GetMyPlanTool($this->user),
             new GetTodayDiaryTool($this->user),
             new SwapMealTool($this->user),
+            new ShoppingDaysTool($this->user),
             new StartMenuGenerationTool($this->user),
         ];
     }
@@ -60,6 +62,7 @@ class ZoryanaAgent implements Agent, HasTools
         - get_today_diary — що з'їв сьогодні та скільки калорій лишилось;
         - swap_meal — ЗАМІНИТИ одну страву (сніданок/обід/вечеря) на альтернативу
           (дешевшу/кориснішу/іншу); меню й список оновляться в застосунку;
+        - set_shopping_days — зібрати список покупок на N перших днів («на пару днів»);
         - start_menu_generation — запустити НОВЕ меню на тиждень; ЛИШЕ після явного «так».
         Питають про «моє меню/страви» чи «скільки з'їв» — спершу виклич інструмент і
         відповідай його даними. «Заміни вечерю/обід/сніданок» — виклич swap_meal.

@@ -18,6 +18,7 @@ class MealPlanResource extends JsonResource
             'budget' => $this->budget,
             'currency' => $this->currency,
             'people' => $this->people,
+            'shopping_days' => $this->shopping_days,
             'diet_style' => $this->diet_style,
             'naive_total' => $this->naive_total,
             'optimized_total' => $this->optimized_total,
