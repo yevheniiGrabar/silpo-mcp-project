@@ -78,14 +78,20 @@ class MealPlanService
             $response = (new MealPlannerAgent)->prompt($this->userPrompt($plan), timeout: 180);
             $menu = is_array($response->structured ?? null) ? $response->structured : [];
 
-            // 2) Агрегуємо унікальні інгредієнти по всьому тижню.
+            // AI-1: порожнє/невалідне меню — це помилка, а не «успішний» пустий план.
+            if (empty($menu['days'])) {
+                throw new \RuntimeException('Агент не повернув меню');
+            }
+
+            // 2) Агрегуємо інгредієнти по всьому тижню (із сумарними к-стями).
             $ingredients = $this->aggregateIngredients($menu);
+            $packs = $this->packsByIngredient($ingredients); // name(lower) => к-сть упаковок
 
             // 3) Детермінований матчинг → кандидати SKU.
             $ctx = $this->deliveryContext($plan);
             $candidates = $this->matching->match($ingredients, $ctx);
 
-            // 4) Оптимізатор бюджету → фінальний кошик + економія.
+            // 4) Оптимізатор бюджету → вибір товару на інгредієнт.
             $result = $this->optimizer->optimize(
                 $candidates,
                 budget: $plan->budget,
@@ -93,16 +99,27 @@ class MealPlanService
                 flexPct: $plan->budget_flex_pct,
             );
 
-            // 5) Персист (з альтернативами для swap).
+            // 5) Кошик із РЕАЛЬНИМИ к-стями (AI-2): qty = упаковки, тотали від пакунків.
             $byIngredient = collect($candidates)->groupBy('ingredient');
-            $items = array_map(function (Candidate $c) use ($byIngredient) {
-                $alts = $byIngredient->get($c->ingredient, collect())
-                    ->reject(fn (Candidate $x) => $x->sku === $c->sku)
-                    ->map($this->altShape(...))
-                    ->values()->all();
+            $optimized = 0;
+            $naive = 0;
+            $items = array_map(function (Candidate $c) use ($byIngredient, $packs, &$optimized, &$naive) {
+                $qty = $packs[$c->ingredient] ?? 1;
+                $group = $byIngredient->get($c->ingredient, collect());
+                $naivePrice = (int) ($group->max(fn (Candidate $x) => $x->price) ?? $c->price);
+                $optimized += $c->price * $qty;
+                $naive += $naivePrice * $qty;
 
-                return $this->toItemAttributes($c) + ['alt_options' => $alts];
+                $alts = $group->reject(fn (Candidate $x) => $x->sku === $c->sku)
+                    ->map($this->altShape(...))->values()->all();
+
+                return $this->toItemAttributes($c, $qty) + ['alt_options' => $alts];
             }, $result['items']);
+
+            // Тотали й економія — від реальних к-стей, а не від однієї штуки.
+            $result['optimized_total'] = $optimized;
+            $result['naive_total'] = $naive;
+            $result['savings'] = max(0, $naive - $optimized);
 
             $this->plans->replaceItems($plan, $items);
             $this->plans->saveResult($plan, $result, $menu);
@@ -125,19 +142,51 @@ class MealPlanService
             foreach ($day['meals'] ?? [] as $meal) {
                 foreach ($meal['ingredients'] ?? [] as $ing) {
                     $name = mb_strtolower(trim((string) ($ing['name'] ?? '')));
-                    if ($name === '' || isset($byName[$name])) {
+                    if ($name === '') {
                         continue;
                     }
-                    $byName[$name] = [
-                        'name' => $name,
-                        'category' => isset($ing['category']) ? (string) $ing['category'] : null,
-                        'search' => array_values(array_filter((array) ($ing['search'] ?? []))),
-                    ];
+                    if (! isset($byName[$name])) {
+                        $byName[$name] = [
+                            'name' => $name,
+                            'category' => isset($ing['category']) ? (string) $ing['category'] : null,
+                            'search' => array_values(array_filter((array) ($ing['search'] ?? []))),
+                            'qty' => 0.0,
+                            'unit' => (string) ($ing['unit'] ?? 'g'),
+                        ];
+                    }
+                    $byName[$name]['qty'] += (float) ($ing['qty'] ?? 0);
                 }
             }
         }
 
         return array_values($byName);
+    }
+
+    /**
+     * К-сть упаковок на інгредієнт (грубо: g/ml ~1000 на упаковку, pcs — поштучно).
+     *
+     * @return array<string, int> name(lower) => packs
+     */
+    private function packsByIngredient(array $ingredients): array
+    {
+        $out = [];
+        foreach ($ingredients as $ing) {
+            $out[$ing['name']] = $this->packsFor((float) ($ing['qty'] ?? 0), (string) ($ing['unit'] ?? 'g'));
+        }
+
+        return $out;
+    }
+
+    private function packsFor(float $qty, string $unit): int
+    {
+        if ($qty <= 0) {
+            return 1;
+        }
+
+        return match ($unit) {
+            'ml', 'g' => max(1, (int) ceil($qty / 1000)), // ~1 кг / 1 л на упаковку
+            default => max(1, (int) ceil($qty)),           // pcs та інше — поштучно
+        };
     }
 
     /**
@@ -201,16 +250,16 @@ class MealPlanService
         ];
     }
 
-    private function toItemAttributes(Candidate $c): array
+    private function toItemAttributes(Candidate $c, int $qty = 1): array
     {
         return [
             'ingredient' => $c->ingredient,
             'silpo_product_id' => $c->sku,
             'title' => $c->title,
-            'qty' => 1,
+            'qty' => $qty,
             'price' => $c->price,
             'old_price' => $c->oldPrice,
-            'price_total' => $c->price,
+            'price_total' => $c->price * $qty,
             'is_promo' => $c->isPromo,
             'is_private_label' => $c->isPrivateLabel,
             'match_confidence' => $c->confidence,
