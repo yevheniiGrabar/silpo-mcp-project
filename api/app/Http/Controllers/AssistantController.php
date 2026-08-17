@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Ai\Agents\ZoryanaAgent;
+use App\Ai\Tools\ToolActionContext;
 use App\Support\ResolvesCurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,7 +26,10 @@ class AssistantController extends Controller
             $reply = (string) (new ZoryanaAgent($this->currentUser()))
                 ->prompt($this->buildPrompt($data['message'], $data['history'] ?? []));
 
-            return response()->json(['reply' => trim($reply)]);
+            // Якщо тул змінив/створив план — віддаємо id, щоб застосунок перечитав меню.
+            $planId = app(ToolActionContext::class)->planId;
+
+            return response()->json(['reply' => trim($reply), 'plan_id' => $planId]);
         } catch (\Throwable $e) {
             report($e);
 

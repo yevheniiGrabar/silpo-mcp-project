@@ -85,67 +85,77 @@ class MealPlanService
                 throw new \RuntimeException('Агент не повернув меню');
             }
 
-            // 2) Агрегуємо інгредієнти по всьому тижню (із сумарними к-стями).
-            $ingredients = $this->aggregateIngredients($menu);
-            $needByName = [];
-            foreach ($ingredients as $ing) {
-                $needByName[$ing['name']] = ['qty' => (float) $ing['qty'], 'unit' => (string) $ing['unit']];
-            }
-
-            // 3) Детермінований матчинг → кандидати SKU.
-            $ctx = $this->deliveryContext($plan);
-            $candidates = $this->matching->match($ingredients, $ctx);
-
-            // 4) Оптимізатор бюджету → вибір товару на інгредієнт.
-            $result = $this->optimizer->optimize(
-                $candidates,
-                budget: $plan->budget,
-                mode: $plan->mode,
-                flexPct: $plan->budget_flex_pct,
-            );
-
-            // 5) Кошик із РЕАЛЬНИМИ к-стями: qty = упаковки (від фасовки товару), + залишок.
-            $byIngredient = collect($candidates)->groupBy('ingredient');
-
-            // BE-7: якщо кошик перевищує ліміт — жадібно даунгрейдимо на дешевші альтернативи.
-            $picked = $this->squeezeToBudget(
-                collect($result['items'])->keyBy('ingredient')->all(),
-                $byIngredient,
-                $needByName,
-                (int) $result['effective_limit'],
-            );
-
-            $optimized = 0;
-            $naive = 0;
-            $items = array_map(function (Candidate $c) use ($byIngredient, $needByName, &$optimized, &$naive) {
-                $need = $needByName[$c->ingredient] ?? ['qty' => 0.0, 'unit' => 'g'];
-                [$qty, $leftover, $packSize] = $this->computePacks($need['qty'], $need['unit'], $c->packSize, $c->packUnit);
-                $group = $byIngredient->get($c->ingredient, collect());
-                $naivePrice = (int) ($group->max(fn (Candidate $x) => $x->price) ?? $c->price);
-                $optimized += $c->price * $qty;
-                $naive += $naivePrice * $qty;
-
-                $alts = $group->reject(fn (Candidate $x) => $x->sku === $c->sku)
-                    ->map($this->altShape(...))->values()->all();
-
-                $reason = $this->substitutionReason($c, $naivePrice);
-
-                return $this->toItemAttributes($c, $qty, $leftover, $packSize, $reason) + ['alt_options' => $alts];
-            }, array_values($picked));
-
-            // Тотали й економія — від реальних к-стей, а не від однієї штуки.
-            $result['optimized_total'] = $optimized;
-            $result['naive_total'] = $naive;
-            $result['savings'] = max(0, $naive - $optimized);
-            $result['within_budget'] = $optimized <= (int) $result['effective_limit'];
-
-            $this->plans->replaceItems($plan, $items);
-            $this->plans->saveResult($plan, $result, $menu);
+            $this->rebuildCart($plan, $menu);
 
             return $plan->fresh('items');
         } catch (Throwable $e) {
             return $this->plans->markStatus($plan, 'failed', $e->getMessage());
         }
+    }
+
+    /**
+     * Матчинг + оптимізатор + ужим під бюджет → кошик і тотали для готового меню.
+     * Використовується і повною генерацією (run), і заміною однієї страви (swap_meal).
+     */
+    public function rebuildCart(MealPlan $plan, array $menu): MealPlan
+    {
+        // Агрегуємо інгредієнти по всьому тижню (із сумарними к-стями).
+        $ingredients = $this->aggregateIngredients($menu);
+        $needByName = [];
+        foreach ($ingredients as $ing) {
+            $needByName[$ing['name']] = ['qty' => (float) $ing['qty'], 'unit' => (string) $ing['unit']];
+        }
+
+        // Детермінований матчинг → кандидати SKU.
+        $ctx = $this->deliveryContext($plan);
+        $candidates = $this->matching->match($ingredients, $ctx);
+
+        // Оптимізатор бюджету → вибір товару на інгредієнт.
+        $result = $this->optimizer->optimize(
+            $candidates,
+            budget: $plan->budget,
+            mode: $plan->mode,
+            flexPct: $plan->budget_flex_pct,
+        );
+
+        // Кошик із РЕАЛЬНИМИ к-стями: qty = упаковки (від фасовки товару), + залишок.
+        $byIngredient = collect($candidates)->groupBy('ingredient');
+
+        // BE-7: якщо кошик перевищує ліміт — жадібно даунгрейдимо на дешевші альтернативи.
+        $picked = $this->squeezeToBudget(
+            collect($result['items'])->keyBy('ingredient')->all(),
+            $byIngredient,
+            $needByName,
+            (int) $result['effective_limit'],
+        );
+
+        $optimized = 0;
+        $naive = 0;
+        $items = array_map(function (Candidate $c) use ($byIngredient, $needByName, &$optimized, &$naive) {
+            $need = $needByName[$c->ingredient] ?? ['qty' => 0.0, 'unit' => 'g'];
+            [$qty, $leftover, $packSize] = $this->computePacks($need['qty'], $need['unit'], $c->packSize, $c->packUnit);
+            $group = $byIngredient->get($c->ingredient, collect());
+            $naivePrice = (int) ($group->max(fn (Candidate $x) => $x->price) ?? $c->price);
+            $optimized += $c->price * $qty;
+            $naive += $naivePrice * $qty;
+
+            $alts = $group->reject(fn (Candidate $x) => $x->sku === $c->sku)
+                ->map($this->altShape(...))->values()->all();
+
+            $reason = $this->substitutionReason($c, $naivePrice);
+
+            return $this->toItemAttributes($c, $qty, $leftover, $packSize, $reason) + ['alt_options' => $alts];
+        }, array_values($picked));
+
+        $result['optimized_total'] = $optimized;
+        $result['naive_total'] = $naive;
+        $result['savings'] = max(0, $naive - $optimized);
+        $result['within_budget'] = $optimized <= (int) $result['effective_limit'];
+
+        $this->plans->replaceItems($plan, $items);
+        $this->plans->saveResult($plan, $result, $menu);
+
+        return $plan->fresh('items');
     }
 
     /**

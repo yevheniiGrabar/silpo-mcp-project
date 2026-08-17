@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Ai\Tools\ToolActionContext;
 use App\Services\Silpo\SilpoTokenProvider;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Mcp\Client;
@@ -14,7 +15,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Один на запит: тулзи Зоряни пишуть сюди змінений план для live-refresh.
+        $this->app->scoped(ToolActionContext::class);
     }
 
     /**

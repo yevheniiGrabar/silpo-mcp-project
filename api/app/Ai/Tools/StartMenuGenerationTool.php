@@ -52,7 +52,8 @@ class StartMenuGenerationTool implements Tool
             'allergies' => $last->allergies ?? [],
         ]);
         GenerateMealPlanJob::dispatch($plan->id);
+        app(ToolActionContext::class)->touch($plan->id); // live-refresh у застосунку
 
-        return 'Запускаю нове меню за твоїми останніми налаштуваннями — глянь у вкладці «Список» за хвилину.';
+        return 'Запускаю нове меню за твоїми останніми налаштуваннями — за мить оновлю.';
     }
 }

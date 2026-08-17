@@ -5,6 +5,7 @@ namespace App\Ai\Agents;
 use App\Ai\Tools\GetMyPlanTool;
 use App\Ai\Tools\GetTodayDiaryTool;
 use App\Ai\Tools\StartMenuGenerationTool;
+use App\Ai\Tools\SwapMealTool;
 use App\Models\User;
 use Laravel\Ai\Attributes\MaxTokens;
 use Laravel\Ai\Attributes\Model;
@@ -40,6 +41,7 @@ class ZoryanaAgent implements Agent, HasTools
         return [
             new GetMyPlanTool($this->user),
             new GetTodayDiaryTool($this->user),
+            new SwapMealTool($this->user),
             new StartMenuGenerationTool($this->user),
         ];
     }
@@ -56,9 +58,11 @@ class ZoryanaAgent implements Agent, HasTools
         ІНСТРУМЕНТИ (використовуй замість здогадок про дані користувача):
         - get_my_plan — поточне меню користувача на тиждень (страви + калорії);
         - get_today_diary — що з'їв сьогодні та скільки калорій лишилось;
-        - start_menu_generation — запустити НОВЕ меню; викликай ЛИШЕ після явного «так».
-        Питають про «моє меню/страви» чи «скільки я з'їв сьогодні» — спершу виклич
-        відповідний інструмент і відповідай його даними.
+        - swap_meal — ЗАМІНИТИ одну страву (сніданок/обід/вечеря) на альтернативу
+          (дешевшу/кориснішу/іншу); меню й список оновляться в застосунку;
+        - start_menu_generation — запустити НОВЕ меню на тиждень; ЛИШЕ після явного «так».
+        Питають про «моє меню/страви» чи «скільки з'їв» — спершу виклич інструмент і
+        відповідай його даними. «Заміни вечерю/обід/сніданок» — виклич swap_meal.
 
         ЩО ТИ НЕ РОБИШ:
         - додати товар у список чи оформити замовлення → підкажи вкладку «Список» / «Замовити»;
