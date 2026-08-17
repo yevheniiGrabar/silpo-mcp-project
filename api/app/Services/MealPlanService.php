@@ -86,7 +86,10 @@ class MealPlanService
 
             // 2) Агрегуємо інгредієнти по всьому тижню (із сумарними к-стями).
             $ingredients = $this->aggregateIngredients($menu);
-            $packs = $this->packsByIngredient($ingredients); // name(lower) => к-сть упаковок
+            $needByName = [];
+            foreach ($ingredients as $ing) {
+                $needByName[$ing['name']] = ['qty' => (float) $ing['qty'], 'unit' => (string) $ing['unit']];
+            }
 
             // 3) Детермінований матчинг → кандидати SKU.
             $ctx = $this->deliveryContext($plan);
@@ -100,12 +103,13 @@ class MealPlanService
                 flexPct: $plan->budget_flex_pct,
             );
 
-            // 5) Кошик із РЕАЛЬНИМИ к-стями (AI-2): qty = упаковки, тотали від пакунків.
+            // 5) Кошик із РЕАЛЬНИМИ к-стями: qty = упаковки (від фасовки товару), + залишок.
             $byIngredient = collect($candidates)->groupBy('ingredient');
             $optimized = 0;
             $naive = 0;
-            $items = array_map(function (Candidate $c) use ($byIngredient, $packs, &$optimized, &$naive) {
-                $qty = $packs[$c->ingredient] ?? 1;
+            $items = array_map(function (Candidate $c) use ($byIngredient, $needByName, &$optimized, &$naive) {
+                $need = $needByName[$c->ingredient] ?? ['qty' => 0.0, 'unit' => 'g'];
+                [$qty, $leftover, $packSize] = $this->computePacks($need['qty'], $need['unit'], $c->packSize, $c->packUnit);
                 $group = $byIngredient->get($c->ingredient, collect());
                 $naivePrice = (int) ($group->max(fn (Candidate $x) => $x->price) ?? $c->price);
                 $optimized += $c->price * $qty;
@@ -114,7 +118,7 @@ class MealPlanService
                 $alts = $group->reject(fn (Candidate $x) => $x->sku === $c->sku)
                     ->map($this->altShape(...))->values()->all();
 
-                return $this->toItemAttributes($c, $qty) + ['alt_options' => $alts];
+                return $this->toItemAttributes($c, $qty, $leftover, $packSize) + ['alt_options' => $alts];
             }, $result['items']);
 
             // Тотали й економія — від реальних к-стей, а не від однієї штуки.
@@ -164,30 +168,32 @@ class MealPlanService
     }
 
     /**
-     * К-сть упаковок на інгредієнт (грубо: g/ml ~1000 на упаковку, pcs — поштучно).
+     * К-сть упаковок + залишок для інгредієнта.
+     * Якщо відома реальна фасовка товару (packSize у тих самих одиницях) —
+     * packs = ceil(потреба / фасовка), залишок = packs*фасовка − потреба.
+     * Інакше — грубий фолбек (~1 кг/1 л на упаковку), залишок невідомий.
      *
-     * @return array<string, int> name(lower) => packs
+     * @return array{0: int, 1: ?int, 2: ?int} [packs, leftover, packSize]
      */
-    private function packsByIngredient(array $ingredients): array
+    private function computePacks(float $need, string $unit, ?float $packSize, ?string $packUnit): array
     {
-        $out = [];
-        foreach ($ingredients as $ing) {
-            $out[$ing['name']] = $this->packsFor((float) ($ing['qty'] ?? 0), (string) ($ing['unit'] ?? 'g'));
+        if ($need <= 0) {
+            return [1, null, $packSize !== null ? (int) round($packSize) : null];
         }
 
-        return $out;
-    }
+        if ($packSize !== null && $packSize > 0 && $packUnit === $unit) {
+            $packs = max(1, (int) ceil($need / $packSize));
+            $leftover = (int) round($packs * $packSize - $need);
 
-    private function packsFor(float $qty, string $unit): int
-    {
-        if ($qty <= 0) {
-            return 1;
+            return [$packs, $leftover, (int) round($packSize)];
         }
 
-        return match ($unit) {
-            'ml', 'g' => max(1, (int) ceil($qty / 1000)), // ~1 кг / 1 л на упаковку
-            default => max(1, (int) ceil($qty)),           // pcs та інше — поштучно
+        $packs = match ($unit) {
+            'ml', 'g' => max(1, (int) ceil($need / 1000)),
+            default => max(1, (int) ceil($need)),
         };
+
+        return [$packs, null, null];
     }
 
     /**
@@ -253,7 +259,7 @@ class MealPlanService
         ];
     }
 
-    private function toItemAttributes(Candidate $c, int $qty = 1): array
+    private function toItemAttributes(Candidate $c, int $qty = 1, ?int $leftover = null, ?int $packSize = null): array
     {
         return [
             'ingredient' => $c->ingredient,
@@ -263,6 +269,8 @@ class MealPlanService
             'price' => $c->price,
             'old_price' => $c->oldPrice,
             'price_total' => $c->price * $qty,
+            'pack_size' => $packSize,
+            'leftover' => $leftover,
             'is_promo' => $c->isPromo,
             'is_private_label' => $c->isPrivateLabel,
             'match_confidence' => $c->confidence,

@@ -189,6 +189,8 @@ class ProductMatchingService
                     isPrivateLabel: $this->isPrivateLabel($title),
                     confidence: round($confidence, 2),
                     oldPrice: $p->oldPrice,
+                    packSize: $p->packSize,
+                    packUnit: $p->packUnit,
                 ),
             ];
         }
@@ -278,6 +280,7 @@ class ProductMatchingService
                 if (($item['available'] ?? true) === false) {
                     continue;
                 }
+                [$packSize, $packUnit] = $this->parsePack((string) ($item['name'] ?? ''));
                 $result[$query][] = new SilpoProduct(
                     id: (string) ($item['id'] ?? ''),
                     title: (string) ($item['name'] ?? ''),
@@ -285,11 +288,36 @@ class ProductMatchingService
                     oldPrice: isset($item['oldPrice']) && $item['oldPrice'] !== null
                         ? (int) round((float) $item['oldPrice']) : null,
                     category: isset($item['category']) ? (string) $item['category'] : null,
+                    packSize: $packSize,
+                    packUnit: $packUnit,
                 );
             }
         }
 
         return $result;
+    }
+
+    /**
+     * Витягти розмір фасовки з назви товару («… 900 мл», «800 г», «1 кг», «10 шт»).
+     * Повертає [розмір у базовій одиниці (g/ml) або к-сть, packUnit] або [null, null].
+     *
+     * @return array{0: ?float, 1: ?string}
+     */
+    private function parsePack(string $title): array
+    {
+        if (! preg_match('/(\d+(?:[.,]\d+)?)\s*(кг|г|мл|л|шт)\b/iu', mb_strtolower($title), $m)) {
+            return [null, null];
+        }
+        $n = (float) str_replace(',', '.', $m[1]);
+
+        return match ($m[2]) {
+            'кг' => [$n * 1000, 'g'],
+            'г' => [$n, 'g'],
+            'л' => [$n * 1000, 'ml'],
+            'мл' => [$n, 'ml'],
+            'шт' => [$n, 'pcs'],
+            default => [null, null],
+        };
     }
 
     /** @return string[] */

@@ -9,8 +9,8 @@ class CartItem extends Model
 {
     protected $fillable = [
         'meal_plan_id', 'ingredient', 'silpo_product_id', 'title', 'qty',
-        'price', 'old_price', 'price_total', 'is_promo', 'is_private_label',
-        'match_confidence', 'alt_options',
+        'price', 'old_price', 'pack_size', 'leftover', 'price_total',
+        'is_promo', 'is_private_label', 'match_confidence', 'alt_options',
     ];
 
     protected function casts(): array

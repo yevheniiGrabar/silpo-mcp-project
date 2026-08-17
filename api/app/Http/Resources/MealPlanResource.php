@@ -33,6 +33,8 @@ class MealPlanResource extends JsonResource
                 'qty' => $i->qty,
                 'price' => $i->price,
                 'old_price' => $i->old_price,
+                'pack_size' => $i->pack_size,
+                'leftover' => $i->leftover,
                 'saved' => $i->old_price !== null && $i->old_price > $i->price
                     ? ($i->old_price - $i->price) * $i->qty : 0,
                 'price_total' => $i->price_total,

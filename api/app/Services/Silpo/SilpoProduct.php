@@ -10,7 +10,9 @@ final readonly class SilpoProduct
         public string $title,
         public int $price,
         public ?int $oldPrice = null,
-        public ?string $category = null, // секція магазину, якщо API її віддає
+        public ?string $category = null,   // секція магазину, якщо API її віддає
+        public ?float $packSize = null,    // розмір фасовки (у packUnit): 800, 0.9…
+        public ?string $packUnit = null,   // 'g' | 'ml' | 'pcs'
     ) {}
 
     public function isPromo(): bool
