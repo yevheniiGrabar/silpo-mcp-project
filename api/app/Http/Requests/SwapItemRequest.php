@@ -14,7 +14,7 @@ class SwapItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'sku' => ['required', 'string'],
+            'sku' => ['required', 'string', 'max:64'],
         ];
     }
 }

@@ -40,6 +40,9 @@ class MealPlannerAgent implements Agent, HasStructuredOutput, HasTools
         товари, що СЬОГОДНІ в акції (виклич silpo_get_promotions).
 
         ПРАВИЛА:
+        0. ОБСЯГ: меню РІВНО на 7 днів (weekday 1..7, кожен рівно раз), у кожному дні
+           РІВНО 3 прийоми: breakfast, lunch, dinner. Не більше й не менше.
+
         1. РЕЖИМ (mode):
            - economy: будуй меню НАВКОЛО акційних товарів, прості бюджетні страви;
            - quality: пріоритет смаку/різноманіттю/уподобанням, акції — приємний бонус.
@@ -97,7 +100,8 @@ class MealPlannerAgent implements Agent, HasStructuredOutput, HasTools
             category (одна з переліку схеми) та search — 1-3 «магазинних» варіанти запиту
             саме цього товару, без брендів (напр. "гречка" → ["гречка","крупа гречана"];
             "куряче філе" → ["куряче філе","філе куряче охолоджене"]). Це критично для
-            точного підбору товару в магазині.
+            точного підбору товару в магазині. qty — кулінарна кількість інгредієнта на всю
+            сім'ю на цей прийом у одиниці unit (g/ml/pcs); система підсумує це за тиждень.
         12. Для КОЖНОЇ страви вкажи kcal — орієнтовну калорійність порції на 1 особу,
             та photo_hint — короткий опис ГОТОВОЇ страви для фото (що видно на тарілці:
             основне, гарнір, зелень, подача), без брендів і без тексту.
@@ -116,10 +120,10 @@ class MealPlannerAgent implements Agent, HasStructuredOutput, HasTools
     public function schema(JsonSchema $schema): array
     {
         return [
-            'days' => $schema->array()->items(
+            'days' => $schema->array()->min(7)->max(7)->items(
                 $schema->object(fn (JsonSchema $s) => [
-                    'weekday' => $s->integer()->required(),
-                    'meals' => $s->array()->items(
+                    'weekday' => $s->integer()->min(1)->max(7)->required(),
+                    'meals' => $s->array()->min(3)->max(3)->items(
                         $s->object(fn (JsonSchema $s) => [
                             'type' => $s->string()->enum(['breakfast', 'lunch', 'dinner'])->required(),
                             'title' => $s->string()->required(),

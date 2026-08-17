@@ -13,14 +13,36 @@ class AssistantController extends Controller
     {
         $data = $request->validate([
             'message' => ['required', 'string', 'max:2000'],
+            'history' => ['nullable', 'array', 'max:12'],
+            'history.*.role' => ['required', 'in:user,assistant'],
+            'history.*.text' => ['required', 'string', 'max:2000'],
         ]);
 
         try {
-            $reply = (string) (new ZoryanaAgent)->prompt($data['message']);
+            $reply = (string) (new ZoryanaAgent)->prompt($this->buildPrompt($data['message'], $data['history'] ?? []));
 
             return response()->json(['reply' => trim($reply)]);
         } catch (\Throwable $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            report($e);
+
+            return response()->json(['message' => 'Зоряна тимчасово недоступна'], 503);
         }
+    }
+
+    /** Останні репліки як контекст діалогу (пам'ять) + поточне повідомлення. */
+    private function buildPrompt(string $message, array $history): string
+    {
+        if ($history === []) {
+            return $message;
+        }
+
+        $lines = [];
+        foreach (array_slice($history, -10) as $h) {
+            $who = ($h['role'] ?? 'user') === 'assistant' ? 'Зоряна' : 'Гість';
+            $lines[] = "{$who}: ".trim((string) ($h['text'] ?? ''));
+        }
+        $lines[] = 'Гість: '.$message;
+
+        return implode("\n", $lines);
     }
 }

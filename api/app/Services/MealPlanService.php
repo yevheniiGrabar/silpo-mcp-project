@@ -280,7 +280,7 @@ class MealPlanService
             ? " (+ до {$p->budget_flex_pct}% зверху дозволено)" : '';
 
         return <<<TXT
-        Режим: {$p->mode}. Філія: {$p->branch_id}. Людей: {$p->people}.
+        Режим: {$p->mode}. Людей: {$p->people}.
         Бюджет-орієнтир: {$p->budget} ₴/тиждень{$flex}.
         Система харчування (ЖОРСТКЕ правило): {$diet}.
         Бажані кухні (м'яке вподобання): {$cuisines}.
