@@ -13,9 +13,17 @@ use App\Services\Embeddings\EmbeddingReranker;
  */
 class ProductMatchingService
 {
+    /** Нижче цього — матч невпевнений → пробуємо LLM-тайбрейкер (Фаза 3). */
+    private const TIEBREAK_THRESHOLD = 0.5;
+
+    /** Ліміт LLM-тайбрейків на одну генерацію (обмежити вартість/латентність). */
+    private const TIEBREAK_BUDGET = 12;
+
     public function __construct(
         private readonly SilpoClient $silpo,
         private readonly ?EmbeddingReranker $reranker = null,
+        private readonly ?MatchMemory $memory = null,
+        private readonly ?MatchTiebreaker $tiebreaker = null,
     ) {}
 
     /** Універсально «не для готування» — штрафуємо в будь-якій категорії. */
@@ -46,6 +54,10 @@ class ProductMatchingService
             $byTerm += $this->parse($data);
         }
 
+        // Вивчені вибори користувача (свапи) для цих інгредієнтів.
+        $prefs = $this->memory?->preferredSkus(array_map(fn ($i) => $i['name'], $ingredients)) ?? [];
+        $tiebreaksLeft = self::TIEBREAK_BUDGET;
+
         $out = [];
         foreach ($ingredients as $ing) {
             // Пул кандидатів = об'єднання результатів усіх термів (без дублів).
@@ -59,17 +71,54 @@ class ProductMatchingService
                     }
                 }
             }
-            // Фаза 1: лексика+категорія (беремо ширше, якщо далі семантичний ре-ранк).
-            $preN = $this->reranker !== null ? max($topN, 8) : $topN;
+            // Фаза 1: лексика+категорія (беремо ширше для наступних стадій).
+            $preN = ($this->reranker !== null || $this->tiebreaker !== null) ? max($topN, 8) : $topN;
             $ranked = $this->rank($ing['name'], $pool, $preN, $ing['category'] ?? null);
 
             // Фаза 2 (опційно): семантичний ре-ранк ембедингами → фінальний top-N.
-            $final = $this->reranker?->rerank($ing['name'], $ranked, $topN) ?? $ranked;
+            $final = $this->reranker?->rerank($ing['name'], $ranked, $topN) ?? array_slice($ranked, 0, $topN);
+
+            // Фаза 3a: LLM-тайбрейкер для невпевнених матчів (обмежено бюджетом).
+            if ($this->tiebreaker !== null && $tiebreaksLeft > 0
+                && ! empty($final) && $final[0]->confidence < self::TIEBREAK_THRESHOLD) {
+                $tiebreaksLeft--;
+                $sku = $this->tiebreaker->pick($ing['name'], $ing['category'] ?? null, array_slice($ranked, 0, 5));
+                if ($sku !== null) {
+                    $final = $this->pinSku($final, $ranked, $sku, $topN);
+                }
+            }
+
+            // Фаза 3b: вивчений вибір користувача завжди перемагає (пінимо в топ).
+            $pref = $prefs[mb_strtolower(trim($ing['name']))] ?? null;
+            if ($pref !== null) {
+                $final = $this->pinSku($final, $ranked, $pref, $topN);
+            }
 
             array_push($out, ...$final);
         }
 
         return $out;
+    }
+
+    /** Підняти кандидата з $sku на перше місце (якщо він є у $ranked). */
+    private function pinSku(array $final, array $ranked, string $sku, int $topN): array
+    {
+        if (! empty($final) && $final[0]->sku === $sku) {
+            return $final;
+        }
+        $pick = null;
+        foreach ($ranked as $c) {
+            if ($c->sku === $sku) {
+                $pick = $c;
+                break;
+            }
+        }
+        if ($pick === null) {
+            return $final; // товар не в поточній видачі — нічого пінити
+        }
+        $rest = array_values(array_filter($final, fn ($c) => $c->sku !== $sku));
+
+        return array_slice(array_merge([$pick], $rest), 0, $topN);
     }
 
     /**

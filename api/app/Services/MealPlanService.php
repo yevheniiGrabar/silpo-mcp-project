@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Repositories\MealPlanRepository;
 use App\Services\Budget\BudgetOptimizerService;
 use App\Services\Budget\Candidate;
+use App\Services\Silpo\MatchMemory;
 use App\Services\Silpo\ProductMatchingService;
 use App\Services\Silpo\SilpoClient;
 use App\Services\Silpo\SilpoContextService;
@@ -27,6 +28,7 @@ class MealPlanService
         private readonly BudgetOptimizerService $optimizer,
         private readonly SilpoContextService $context,
         private readonly SilpoClient $silpo,
+        private readonly MatchMemory $matchMemory,
     ) {}
 
     /** Створити план у статусі pending (без важкої генерації). */
@@ -172,6 +174,9 @@ class MealPlanService
             'match_confidence' => $target['confidence'] ?? 1,
             'alt_options' => $alts->reject(fn ($a) => $a['sku'] === $sku)->push($previous)->values()->all(),
         ]);
+
+        // Навчання матчингу: запам'ятати вибір користувача для цього інгредієнта.
+        $this->matchMemory->remember($item->ingredient, (string) $target['sku'], (string) $target['title']);
 
         // Перерахунок економії.
         $optimized = $this->plans->sumItemsTotal($plan);
