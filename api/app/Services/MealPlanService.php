@@ -13,6 +13,7 @@ use App\Services\Silpo\MatchMemory;
 use App\Services\Silpo\ProductMatchingService;
 use App\Services\Silpo\SilpoClient;
 use App\Services\Silpo\SilpoContextService;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -105,6 +106,15 @@ class MealPlanService
 
             // 5) Кошик із РЕАЛЬНИМИ к-стями: qty = упаковки (від фасовки товару), + залишок.
             $byIngredient = collect($candidates)->groupBy('ingredient');
+
+            // BE-7: якщо кошик перевищує ліміт — жадібно даунгрейдимо на дешевші альтернативи.
+            $picked = $this->squeezeToBudget(
+                collect($result['items'])->keyBy('ingredient')->all(),
+                $byIngredient,
+                $needByName,
+                (int) $result['effective_limit'],
+            );
+
             $optimized = 0;
             $naive = 0;
             $items = array_map(function (Candidate $c) use ($byIngredient, $needByName, &$optimized, &$naive) {
@@ -118,13 +128,16 @@ class MealPlanService
                 $alts = $group->reject(fn (Candidate $x) => $x->sku === $c->sku)
                     ->map($this->altShape(...))->values()->all();
 
-                return $this->toItemAttributes($c, $qty, $leftover, $packSize) + ['alt_options' => $alts];
-            }, $result['items']);
+                $reason = $this->substitutionReason($c, $naivePrice);
+
+                return $this->toItemAttributes($c, $qty, $leftover, $packSize, $reason) + ['alt_options' => $alts];
+            }, array_values($picked));
 
             // Тотали й економія — від реальних к-стей, а не від однієї штуки.
             $result['optimized_total'] = $optimized;
             $result['naive_total'] = $naive;
             $result['savings'] = max(0, $naive - $optimized);
+            $result['within_budget'] = $optimized <= (int) $result['effective_limit'];
 
             $this->plans->replaceItems($plan, $items);
             $this->plans->saveResult($plan, $result, $menu);
@@ -175,6 +188,55 @@ class MealPlanService
      *
      * @return array{0: int, 1: ?int, 2: ?int} [packs, leftover, packSize]
      */
+    /**
+     * BE-7: жадібно даунгрейдимо найдорожчі позиції на дешевші альтернативи,
+     * поки тижнева сума (з упаковками) не влізе в ліміт (або нічого ужимати).
+     *
+     * @param  array<string, Candidate>  $chosen  ingredient => обраний кандидат
+     * @param  Collection<string, Collection<int, Candidate>>  $byIngredient
+     * @param  array<string, array{qty: float, unit: string}>  $needByName
+     * @return array<string, Candidate>
+     */
+    private function squeezeToBudget(array $chosen, $byIngredient, array $needByName, int $limit): array
+    {
+        $weekly = function (Candidate $c) use ($needByName): int {
+            $need = $needByName[$c->ingredient] ?? ['qty' => 0.0, 'unit' => 'g'];
+            [$packs] = $this->computePacks($need['qty'], $need['unit'], $c->packSize, $c->packUnit);
+
+            return $c->price * $packs;
+        };
+        $total = fn (): int => array_sum(array_map($weekly, $chosen));
+
+        $guard = 0;
+        while ($total() > $limit && $guard++ < 200) {
+            $bestIng = null;
+            $bestAlt = null;
+            $bestSaving = 0;
+
+            foreach ($chosen as $ing => $cur) {
+                $alt = ($byIngredient->get($ing) ?? collect())
+                    ->filter(fn (Candidate $x) => $x->price < $cur->price)
+                    ->sortBy('price')->first();
+                if ($alt === null) {
+                    continue;
+                }
+                $saving = $weekly($cur) - $weekly($alt);
+                if ($saving > $bestSaving) {
+                    $bestSaving = $saving;
+                    $bestIng = $ing;
+                    $bestAlt = $alt;
+                }
+            }
+
+            if ($bestIng === null || $bestSaving <= 0) {
+                break; // дешевших альтернатив немає — далі не ужати
+            }
+            $chosen[$bestIng] = $bestAlt;
+        }
+
+        return $chosen;
+    }
+
     private function computePacks(float $need, string $unit, ?float $packSize, ?string $packUnit): array
     {
         if ($need <= 0) {
@@ -259,7 +321,7 @@ class MealPlanService
         ];
     }
 
-    private function toItemAttributes(Candidate $c, int $qty = 1, ?int $leftover = null, ?int $packSize = null): array
+    private function toItemAttributes(Candidate $c, int $qty = 1, ?int $leftover = null, ?int $packSize = null, ?string $reason = null): array
     {
         return [
             'ingredient' => $c->ingredient,
@@ -271,10 +333,29 @@ class MealPlanService
             'price_total' => $c->price * $qty,
             'pack_size' => $packSize,
             'leftover' => $leftover,
+            'reason' => $reason,
             'is_promo' => $c->isPromo,
             'is_private_label' => $c->isPrivateLabel,
             'match_confidence' => $c->confidence,
         ];
+    }
+
+    /** SubstitutionExplainer: чому саме цей товар («Власна марка, дешевше на 20 ₴»). */
+    private function substitutionReason(Candidate $c, int $naivePrice): ?string
+    {
+        $parts = [];
+        if ($c->isPromo) {
+            $parts[] = $c->oldPrice !== null && $c->oldPrice > $c->price
+                ? 'Акція −'.(int) round(($c->oldPrice - $c->price) / $c->oldPrice * 100).'%'
+                : 'Акція';
+        } elseif ($c->isPrivateLabel) {
+            $parts[] = 'Власна марка';
+        }
+        if ($naivePrice > $c->price) {
+            $parts[] = 'дешевше на '.($naivePrice - $c->price).' ₴';
+        }
+
+        return $parts === [] ? null : implode(', ', $parts);
     }
 
     private function userPrompt(MealPlan $p): string
