@@ -16,5 +16,6 @@ final readonly class Candidate
         public bool $isPromo = false,
         public bool $isPrivateLabel = false,
         public float $confidence = 1.0, // 0..1 впевненість матчингу
+        public ?int $oldPrice = null,   // ціна до знижки (для розрахунку економії)
     ) {}
 }

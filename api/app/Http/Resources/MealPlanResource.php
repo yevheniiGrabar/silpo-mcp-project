@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\MealPlan;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\MealPlan */
+/** @mixin MealPlan */
 class MealPlanResource extends JsonResource
 {
     public function toArray(Request $request): array
@@ -31,6 +32,9 @@ class MealPlanResource extends JsonResource
                 'sku' => $i->silpo_product_id,
                 'qty' => $i->qty,
                 'price' => $i->price,
+                'old_price' => $i->old_price,
+                'saved' => $i->old_price !== null && $i->old_price > $i->price
+                    ? ($i->old_price - $i->price) * $i->qty : 0,
                 'price_total' => $i->price_total,
                 'is_promo' => $i->is_promo,
                 'is_private_label' => $i->is_private_label,

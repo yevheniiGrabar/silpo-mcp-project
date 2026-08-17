@@ -72,6 +72,7 @@ class ProductMatchingService
                     isPromo: $p->isPromo(),
                     isPrivateLabel: $this->isPrivateLabel($title),
                     confidence: round($confidence, 2),
+                    oldPrice: $p->oldPrice,
                 ),
             ];
         }
@@ -88,7 +89,7 @@ class ProductMatchingService
      * $ctx = {branchId, deliveryType, timeslotStart, timeslotEnd} (docs/06 — обов'язково).
      *
      * @param  string[]  $ingredients
-     * @return Candidate[]  плоский список (по topN на інгредієнт)
+     * @return Candidate[] плоский список (по topN на інгредієнт)
      */
     public function match(array $ingredients, array $ctx, int $topN = 3): array
     {
