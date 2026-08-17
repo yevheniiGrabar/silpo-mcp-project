@@ -21,5 +21,8 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        // Демо-історія для сторінки «Аналітика» (demo@mealize.app).
+        $this->call(DemoHistorySeeder::class);
     }
 }
