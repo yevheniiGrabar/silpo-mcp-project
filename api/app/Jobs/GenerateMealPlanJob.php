@@ -17,6 +17,9 @@ class GenerateMealPlanJob implements ShouldQueue
 
     public int $tries = 2;
 
+    /** Генерація (агент + матчинг + MCP) буває довгою — не вбивати воркером. */
+    public int $timeout = 240;
+
     public int $backoff = 5;
 
     public function __construct(public readonly int $mealPlanId) {}

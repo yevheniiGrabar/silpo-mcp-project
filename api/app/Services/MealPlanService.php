@@ -71,7 +71,9 @@ class MealPlanService
 
             // 1) Агент будує меню (сам читає акції/профіль через MCP-tools).
             // Структурований вивід laravel/ai лежить у $response->structured (['days'=>...]).
-            $response = (new MealPlannerAgent)->prompt($this->userPrompt($plan));
+            // Тяжкий структурований вивід (меню + категорії + search + photo_hint) →
+            // піднімаємо таймаут запиту до моделі, щоб не рвалось на 60с.
+            $response = (new MealPlannerAgent)->prompt($this->userPrompt($plan), timeout: 180);
             $menu = is_array($response->structured ?? null) ? $response->structured : [];
 
             // 2) Агрегуємо унікальні інгредієнти по всьому тижню.

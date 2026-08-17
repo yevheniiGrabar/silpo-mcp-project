@@ -98,8 +98,9 @@ class MealPlannerAgent implements Agent, HasStructuredOutput, HasTools
             саме цього товару, без брендів (напр. "гречка" → ["гречка","крупа гречана"];
             "куряче філе" → ["куряче філе","філе куряче охолоджене"]). Це критично для
             точного підбору товару в магазині.
-        12. Для КОЖНОЇ страви додай photo_hint — короткий опис ГОТОВОЇ страви для фото
-            (що видно на тарілці: основне, гарнір, зелень, подача), без брендів і без тексту.
+        12. Для КОЖНОЇ страви вкажи kcal — орієнтовну калорійність порції на 1 особу,
+            та photo_hint — короткий опис ГОТОВОЇ страви для фото (що видно на тарілці:
+            основне, гарнір, зелень, подача), без брендів і без тексту.
         13. Поверни СТРОГО у форматі схеми (JSON), без зайвого тексту.
         PROMPT;
     }
@@ -123,7 +124,8 @@ class MealPlannerAgent implements Agent, HasStructuredOutput, HasTools
                             'type' => $s->string()->enum(['breakfast', 'lunch', 'dinner'])->required(),
                             'title' => $s->string()->required(),
                             'cook_minutes' => $s->integer()->required(),
-                            'photo_hint' => $s->string(), // короткий опис вигляду страви для фото
+                            'kcal' => $s->integer()->required(), // орієнтовна калорійність порції на 1 особу
+                            'photo_hint' => $s->string(),        // короткий опис вигляду страви для фото
                             'ingredients' => $s->array()->items(
                                 $s->object(fn (JsonSchema $s) => [
                                     'name' => $s->string()->required(),
