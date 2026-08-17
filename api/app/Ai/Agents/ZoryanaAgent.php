@@ -2,27 +2,47 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Tools\GetMyPlanTool;
+use App\Ai\Tools\GetTodayDiaryTool;
+use App\Ai\Tools\StartMenuGenerationTool;
+use App\Models\User;
 use Laravel\Ai\Attributes\MaxTokens;
 use Laravel\Ai\Attributes\Model;
 use Laravel\Ai\Attributes\Provider;
 use Laravel\Ai\Attributes\Timeout;
 use Laravel\Ai\Contracts\Agent;
+use Laravel\Ai\Contracts\HasTools;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Promptable;
 
 /**
  * Зоряна — розмовна помічниця Mealize (голос/текст). Відповідає коротко,
- * українською. Меню/кошик/checkout виконують окремі детерміновані флоу
- * (кнопки в застосунку); тут — діалог і підказки. Haiku для швидкості.
- * Обіцянки = можливості: НЕ заявляє дій, яких не робить (немає tools/даних меню).
+ * українською. Має інструменти для реальних даних (моє меню / щоденник) і
+ * запуску генерації; мутації — лише після підтвердження. Haiku для швидкості.
  */
 #[Provider(Lab::Anthropic)]
 #[Model('claude-haiku-4-5-20251001')]
-#[MaxTokens(300)]
-#[Timeout(20)]
-class ZoryanaAgent implements Agent
+#[MaxTokens(400)]
+#[Timeout(25)]
+class ZoryanaAgent implements Agent, HasTools
 {
     use Promptable;
+
+    public function __construct(private readonly ?User $user = null) {}
+
+    /** Інструменти доступні лише за наявності користувача (у чаті — так). */
+    public function tools(): iterable
+    {
+        if ($this->user === null) {
+            return [];
+        }
+
+        return [
+            new GetMyPlanTool($this->user),
+            new GetTodayDiaryTool($this->user),
+            new StartMenuGenerationTool($this->user),
+        ];
+    }
 
     public function instructions(): string
     {
@@ -33,14 +53,19 @@ class ZoryanaAgent implements Agent
         ЩО ТИ МОЖЕШ: порадити страви та ідеї меню, пояснити принципи дієт і зразкові
         калорії/БЖУ типових страв, підказати, як користуватись застосунком.
 
-        ЩО ТИ НЕ РОБИШ (замість цього називай кнопку):
-        - згенерувати меню → «Скласти меню» у Налаштуваннях;
-        - додати товар у список чи оформити замовлення → вкладка «Список» / «Замовити»;
-        - назвати точну ціну товару в Сільпо чи точні калорії конкретної страви
-          користувача — цих даних ти не бачиш; давай лише орієнтовні значення і кажи,
-          що це приблизно.
+        ІНСТРУМЕНТИ (використовуй замість здогадок про дані користувача):
+        - get_my_plan — поточне меню користувача на тиждень (страви + калорії);
+        - get_today_diary — що з'їв сьогодні та скільки калорій лишилось;
+        - start_menu_generation — запустити НОВЕ меню; викликай ЛИШЕ після явного «так».
+        Питають про «моє меню/страви» чи «скільки я з'їв сьогодні» — спершу виклич
+        відповідний інструмент і відповідай його даними.
+
+        ЩО ТИ НЕ РОБИШ:
+        - додати товар у список чи оформити замовлення → підкажи вкладку «Список» / «Замовити»;
+        - назвати точну ціну конкретного товару Сільпо — цих даних ти не бачиш, кажи «приблизно».
 
         ПРАВИЛА:
+        - Перед start_menu_generation завжди перепитай підтвердження.
         - Не вигадуй цін, знижок і фактів про наявність товарів.
         - Нечіткий запит — одне коротке уточнення.
         - Питання не про їжу/застосунок — м'яко повертай до теми.

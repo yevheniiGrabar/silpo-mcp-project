@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Ai\Agents\ZoryanaAgent;
+use App\Support\ResolvesCurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AssistantController extends Controller
 {
+    use ResolvesCurrentUser;
+
     /** POST /api/assistant — повідомлення до Зоряни (Claude) → текстова відповідь. */
     public function chat(Request $request): JsonResponse
     {
@@ -19,7 +22,8 @@ class AssistantController extends Controller
         ]);
 
         try {
-            $reply = (string) (new ZoryanaAgent)->prompt($this->buildPrompt($data['message'], $data['history'] ?? []));
+            $reply = (string) (new ZoryanaAgent($this->currentUser()))
+                ->prompt($this->buildPrompt($data['message'], $data['history'] ?? []));
 
             return response()->json(['reply' => trim($reply)]);
         } catch (\Throwable $e) {
