@@ -3,16 +3,20 @@
 namespace App\Services\Silpo;
 
 use App\Services\Budget\Candidate;
+use App\Services\Embeddings\EmbeddingReranker;
 
 /**
  * Детермінований матчинг «інгредієнт → SKU» (НЕ LLM). Сирий пошук Сільпо
- * промахується ~30-40% → ре-ранкінг за назвою + КАТЕГОРІЙНІ профілі (очікувані/
- * заборонені слова в межах категорії) + мультизапит за search-термами від агента.
+ * промахується ~30-40% → ре-ранкінг за назвою + КАТЕГОРІЙНІ профілі (Фаза 1) +
+ * опційний семантичний ре-ранк ембедингами (Фаза 2) + мультизапит за search-термами.
  * Публічний rank() чистий і покритий тестами; match() робить живий виклик MCP.
  */
 class ProductMatchingService
 {
-    public function __construct(private readonly SilpoClient $silpo) {}
+    public function __construct(
+        private readonly SilpoClient $silpo,
+        private readonly ?EmbeddingReranker $reranker = null,
+    ) {}
 
     /** Універсально «не для готування» — штрафуємо в будь-якій категорії. */
     private const GLOBAL_FORBID = [
@@ -55,7 +59,14 @@ class ProductMatchingService
                     }
                 }
             }
-            array_push($out, ...$this->rank($ing['name'], $pool, $topN, $ing['category'] ?? null));
+            // Фаза 1: лексика+категорія (беремо ширше, якщо далі семантичний ре-ранк).
+            $preN = $this->reranker !== null ? max($topN, 8) : $topN;
+            $ranked = $this->rank($ing['name'], $pool, $preN, $ing['category'] ?? null);
+
+            // Фаза 2 (опційно): семантичний ре-ранк ембедингами → фінальний top-N.
+            $final = $this->reranker?->rerank($ing['name'], $ranked, $topN) ?? $ranked;
+
+            array_push($out, ...$final);
         }
 
         return $out;

@@ -47,4 +47,11 @@ return [
         ],
     ],
 
+    // Voyage AI (через MongoDB-шлюз) — ембединги для семантичного ре-ранку матчингу.
+    'voyage' => [
+        'key' => env('VOYAGE_API_KEY'),
+        'base_url' => env('VOYAGE_BASE_URL', 'https://ai.mongodb.com/v1'),
+        'model' => env('VOYAGE_MODEL', 'voyage-3.5-lite'),
+    ],
+
 ];
