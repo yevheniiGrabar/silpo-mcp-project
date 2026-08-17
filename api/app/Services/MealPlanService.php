@@ -37,6 +37,9 @@ class MealPlanService
             'budget' => $dto['budget'],
             'people' => $dto['people'] ?? 2,
             'diet_style' => $dto['diet_style'] ?? 'pp',
+            'diet_system' => $dto['diet_system'] ?? 'omnivore',
+            'cuisines' => $dto['cuisines'] ?? [],
+            'health_filters' => $dto['health_filters'] ?? [],
             'mode' => $dto['mode'] ?? 'economy',
             'budget_flex_pct' => $dto['budget_flex_pct'] ?? 0,
             'appliances' => $dto['appliances'] ?? ['stove', 'oven'],
@@ -200,17 +203,37 @@ class MealPlanService
 
     private function userPrompt(MealPlan $p): string
     {
-        $appliances = implode(', ', $p->appliances ?? []);
+        $appliances = implode(', ', $p->appliances ?? []) ?: 'плита';
         $allergies = implode(', ', $p->allergies ?? []) ?: 'немає';
-        $flex = $p->mode === 'quality' ? " (+ до {$p->budget_flex_pct}% зверху дозволено)" : '';
+        $cuisines = implode(', ', $p->cuisines ?? []) ?: 'без переваг';
+        $health = implode(', ', $p->health_filters ?? []) ?: 'немає';
+        $diet = $this->dietLabel($p->diet_system);
+        $flex = $p->mode === 'quality' && ($p->budget_flex_pct ?? 0) > 0
+            ? " (+ до {$p->budget_flex_pct}% зверху дозволено)" : '';
 
         return <<<TXT
         Режим: {$p->mode}. Філія: {$p->branch_id}. Людей: {$p->people}.
         Бюджет-орієнтир: {$p->budget} ₴/тиждень{$flex}.
-        Стиль: {$p->diet_style}. Алергії: {$allergies}. Техніка: {$appliances}.
-        Ліміт часу на страву: {$p->max_cook_minutes} хв.
-        Склади меню на тиждень згідно з правилами. Спочатку перевір сьогоднішні акції.
+        Система харчування (ЖОРСТКЕ правило): {$diet}.
+        Бажані кухні (м'яке вподобання): {$cuisines}.
+        Здорові фільтри (цілі складу): {$health}.
+        Алергії/виключення (НІКОЛИ не додавай навіть слідів): {$allergies}.
+        Доступна техніка: {$appliances}. Ліміт часу на страву: {$p->max_cook_minutes} хв.
+        Склади меню на тиждень СУВОРО за системою харчування та правилами. Спочатку перевір сьогоднішні акції.
         TXT;
+    }
+
+    /** Код системи харчування → людський опис для промпту. */
+    private function dietLabel(?string $s): string
+    {
+        return match ($s) {
+            'vegetarian' => 'вегетаріанське (без м’яса, птиці, риби та морепродуктів; молочка, яйця, мед — дозволені)',
+            'vegan' => 'веганське (ЖОДНИХ продуктів тваринного походження: без м’яса, риби, яєць, молока, сиру, масла, меду, желатину)',
+            'pescetarian' => 'пескетаріанське (риба і морепродукти дозволені; м’ясо і птиця — ні)',
+            'keto' => 'кето / низьковуглеводне (мінімум вуглеводів; без цукру, борошна, хліба, круп, картоплі, солодких фруктів; акцент на білок і корисні жири)',
+            'paleo' => 'палео (без круп, бобових, молочних продуктів, цукру та оброблених продуктів; м’ясо, риба, яйця, овочі, фрукти, горіхи)',
+            default => 'звичайне (без обмежень)',
+        };
     }
 
     /** {branchId, deliveryType, timeslotStart, timeslotEnd} — резолв через ContextService (docs/06). */

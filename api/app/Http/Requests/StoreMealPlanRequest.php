@@ -18,7 +18,12 @@ class StoreMealPlanRequest extends FormRequest
             'mode' => ['required', 'in:economy,quality'],
             'budget_flex_pct' => ['nullable', 'integer', 'min:0', 'max:50'],
             'people' => ['nullable', 'integer', 'min:1', 'max:10'],
-            'diet_style' => ['nullable', 'in:pp,protein,veggie,budget,surprise'],
+            'diet_style' => ['nullable', 'in:pp,protein,veggie,budget,surprise'], // legacy, back-compat
+            'diet_system' => ['nullable', 'in:omnivore,vegetarian,vegan,pescetarian,keto,paleo'],
+            'cuisines' => ['nullable', 'array'],
+            'cuisines.*' => ['string', 'max:32'],
+            'health_filters' => ['nullable', 'array'],
+            'health_filters.*' => ['string', 'max:32'],
             'appliances' => ['nullable', 'array'],
             'appliances.*' => ['string'],
             'allergies' => ['nullable', 'array'],

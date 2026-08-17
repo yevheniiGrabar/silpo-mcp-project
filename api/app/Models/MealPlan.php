@@ -9,7 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class MealPlan extends Model
 {
     protected $fillable = [
-        'user_id', 'branch_id', 'budget', 'people', 'diet_style', 'mode',
+        'user_id', 'branch_id', 'budget', 'people', 'diet_style', 'diet_system',
+        'cuisines', 'health_filters', 'mode',
         'budget_flex_pct', 'appliances', 'max_cook_minutes', 'allergies',
         'status', 'currency', 'plan_json', 'naive_total', 'optimized_total',
         'savings', 'error',
@@ -20,6 +21,8 @@ class MealPlan extends Model
         return [
             'appliances' => 'array',
             'allergies' => 'array',
+            'cuisines' => 'array',
+            'health_filters' => 'array',
             'plan_json' => 'array',
         ];
     }
