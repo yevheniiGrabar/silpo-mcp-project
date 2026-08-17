@@ -4,7 +4,7 @@ namespace App\Services\Silpo;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use Laravel\Mcp\Client\ToolResult;
+use Laravel\Mcp\Client\Schema\ToolResult;
 use Laravel\Mcp\Facades\Mcp;
 use Throwable;
 
@@ -27,6 +27,18 @@ class SilpoClient
     public function call(string $tool, array $args = []): ToolResult
     {
         return $this->attempt(fn (): ToolResult => Mcp::client('silpo')->callTool($tool, $args), $tool);
+    }
+
+    /** Виклик + декод JSON-тіла відповіді (Silpo віддає дані у text). [] на помилку. */
+    public function callData(string $tool, array $args = []): array
+    {
+        $result = $this->call($tool, $args);
+        if ($result->isError) {
+            return [];
+        }
+        $decoded = json_decode($result->text(), true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     /**

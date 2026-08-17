@@ -67,8 +67,9 @@ class MealPlanService
             }
 
             // 1) Агент будує меню (сам читає акції/профіль через MCP-tools).
-            $menu = (new MealPlannerAgent)->prompt($this->userPrompt($plan));
-            $menu = is_array($menu) ? $menu : (array) $menu;
+            // Структурований вивід laravel/ai лежить у $response->structured (['days'=>...]).
+            $response = (new MealPlannerAgent)->prompt($this->userPrompt($plan));
+            $menu = is_array($response->structured ?? null) ? $response->structured : [];
 
             // 2) Агрегуємо унікальні інгредієнти по всьому тижню.
             $ingredients = $this->aggregateIngredients($menu);
@@ -225,13 +226,16 @@ class MealPlanService
         }
 
         try {
-            $raw = $this->silpo->call('silpo_list_branches')->structuredContent ?? [];
-            $list = $raw['branches'] ?? $raw['results'] ?? $raw;
-            if (is_array($list) && $list !== []) {
-                $first = reset($list);
-                $id = is_array($first) ? ($first['id'] ?? $first['branchId'] ?? null) : null;
-
-                return $id !== null ? (string) $id : $given;
+            $data = $this->silpo->callData('silpo_list_branches');
+            foreach (($data['branches'] ?? []) as $b) {
+                // перша реальна відкрита філія з самовивозом
+                if (($b['open'] ?? false) === true && ($b['hasPickup'] ?? false) === true) {
+                    return (string) ($b['branchId'] ?? $b['id'] ?? $given);
+                }
+            }
+            $first = ($data['branches'] ?? [])[0] ?? null;
+            if (is_array($first)) {
+                return (string) ($first['branchId'] ?? $first['id'] ?? $given);
             }
         } catch (Throwable) {
             // Silpo недоступний/не залогінено — лишаємо як є (впаде вище з 401).

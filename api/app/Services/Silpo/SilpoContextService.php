@@ -18,13 +18,13 @@ class SilpoContextService
             return [];
         }
 
-        // TODO(B6.1): deliveryType із silpo_get_available_delivery_types (потребує lat/lng).
-        $deliveryType = 'PLANNED';
+        // Самовивіз — не потребує адреси; має слоти й асортимент (docs/06).
+        $deliveryType = 'SelfPickup';
 
-        $slotsRaw = $this->silpo->call('silpo_get_time_slots', [
+        $slotsRaw = $this->silpo->callData('silpo_get_time_slots', [
             'branchId' => $branchId,
             'deliveryType' => $deliveryType,
-        ])->structuredContent ?? [];
+        ]);
 
         $slot = $this->pickAvailableSlot($slotsRaw);
 

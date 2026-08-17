@@ -13,8 +13,17 @@ class ProductMatchingService
 {
     public function __construct(private readonly SilpoClient $silpo) {}
 
-    /** Слова, що майже завжди означають нерелевантний товар для базового інгредієнта. */
-    private const BLOCK = ['шоколад', 'цукерк', 'корм', 'десерт', 'морозиво', 'печиво', 'сік ', 'напій'];
+    /** Слова, що майже завжди = нерелевантний/перероблений товар для базового інгредієнта. */
+    private const BLOCK = [
+        'шоколад', 'цукерк', 'корм', 'десерт', 'морозиво', 'печиво', 'напій',
+        'пюре', 'сирок', 'снек', 'кабанос', 'jerky', 'вялен', "в'ялен", 'кускус',
+        'дитяч', 'малятк', 'агуня', 'малюк', 'батончик', 'чіпси', 'ароматизат',
+        'смаком', 'приправ', 'кубик', 'бульйонн', 'соус', 'паштет', 'консерв',
+        'пастил', 'сушен', 'ньоккі', 'галет', 'крекер', 'вафл', 'мармелад',
+        'сік ', 'копчен', 'мікрозелен', 'сироп', 'варенн', 'джем', 'нектар',
+        'пиво', 'пивн', 'radler', 'сиркова', 'сиркові', 'борошно',
+        'алкоголь', 'вино', 'коктейль', 'тістечк', 'йогурт', 'напій молоч',
+    ];
 
     /**
      * Ре-ранкінг сирих товарів під інгредієнт → top-N кандидатів.
@@ -38,13 +47,17 @@ class ProductMatchingService
                 }
                 if (str_contains($title, $w)) {
                     $score += 1.0;
-                } elseif (str_contains($title, mb_substr($w, 0, 4))) {
-                    $score += 0.4;
+                    // назва починається з інгредієнта («Молоко …», «Банан …») — головний товар.
+                    if (str_starts_with($title, $w)) {
+                        $score += 0.8;
+                    }
+                } elseif (mb_strlen($w) >= 5 && str_contains($title, mb_substr($w, 0, 5))) {
+                    $score += 0.25; // обережний префікс (5+ літер), щоб «кабачок»≠«кабанос»
                 }
             }
             foreach (self::BLOCK as $bad) {
                 if (str_contains($title, $bad)) {
-                    $score -= 1.5;
+                    $score -= 2.5;
                 }
             }
 
@@ -81,11 +94,11 @@ class ProductMatchingService
     {
         $out = [];
         foreach (array_chunk($ingredients, 30) as $batch) {
-            $res = $this->silpo->call('silpo_find_products_batch', array_merge($ctx, [
+            $data = $this->silpo->callData('silpo_find_products_batch', array_merge($ctx, [
                 'products' => $batch,
             ]));
 
-            $grouped = $this->parse($res->structuredContent ?? []);
+            $grouped = $this->parse($data);
             foreach ($batch as $ingredient) {
                 $raw = $grouped[$ingredient] ?? [];
                 array_push($out, ...$this->rank($ingredient, $raw, $topN));
@@ -96,20 +109,24 @@ class ProductMatchingService
     }
 
     /**
-     * Нормалізує відповідь MCP у {ingredient => SilpoProduct[]}.
-     * Форма відповіді уточнюється на живих даних (docs/06 reference).
+     * Нормалізує відповідь silpo_find_products_batch у {query => SilpoProduct[]}.
+     * Реальна форма (docs/06): { queries: [ { query, totalFound, products: [
+     *   { id, name, price(float), oldPrice(?float), available, ... } ] } ] }.
      *
      * @return array<string, SilpoProduct[]>
      */
-    private function parse(array $structured): array
+    private function parse(array $data): array
     {
         $result = [];
-        foreach (($structured['results'] ?? $structured['products'] ?? []) as $group) {
-            $query = (string) ($group['query'] ?? $group['ingredient'] ?? '');
-            foreach (($group['items'] ?? $group['products'] ?? []) as $item) {
+        foreach (($data['queries'] ?? []) as $group) {
+            $query = (string) ($group['query'] ?? '');
+            foreach (($group['products'] ?? []) as $item) {
+                if (($item['available'] ?? true) === false) {
+                    continue;
+                }
                 $result[$query][] = new SilpoProduct(
-                    id: (string) ($item['id'] ?? $item['productId'] ?? ''),
-                    title: (string) ($item['title'] ?? $item['name'] ?? ''),
+                    id: (string) ($item['id'] ?? ''),
+                    title: (string) ($item['name'] ?? ''),
                     price: (int) round((float) ($item['price'] ?? 0)),
                     oldPrice: isset($item['oldPrice']) && $item['oldPrice'] !== null
                         ? (int) round((float) $item['oldPrice']) : null,
