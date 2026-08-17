@@ -17,7 +17,9 @@ class HomeController extends Controller
         try {
             return response()->json($rec->home(is_string($branchId) ? $branchId : null, $weekday));
         } catch (\Throwable $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            report($e);
+
+            return response()->json(['message' => 'Сервіс Сільпо тимчасово недоступний'], 503);
         }
     }
 }

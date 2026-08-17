@@ -21,7 +21,7 @@ class SilpoOAuthController extends Controller
     {
         // Прив'язуємо до залогіненого юзера; для демо — до demo-юзера.
         $user = Auth::user() ?? User::firstOrCreate(
-            ['email' => 'demo@mealize.app'],
+            ['email' => config('app.demo_email')],
             ['name' => 'Demo', 'password' => bcrypt(Str::random(40))],
         );
 

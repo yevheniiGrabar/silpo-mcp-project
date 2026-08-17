@@ -15,6 +15,9 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    // Демо-користувач (локальний режим без auth). У проді — реальна автентифікація.
+    'demo_email' => env('DEMO_EMAIL', 'demo@mealize.app'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

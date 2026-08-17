@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
+use App\Support\ResolvesCurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 
 class FoodLogController extends Controller
 {
+    use ResolvesCurrentUser;
+
     /** POST /api/food-logs — записати з'їдену порцію (подія щоденника). */
     public function store(Request $request): JsonResponse
     {
@@ -34,13 +34,5 @@ class FoodLogController extends Controller
         ]);
 
         return response()->json(['data' => $log], 201);
-    }
-
-    private function currentUser(): User
-    {
-        return Auth::user() ?? User::firstOrCreate(
-            ['email' => 'demo@mealize.app'],
-            ['name' => 'Demo', 'password' => bcrypt(Str::random(40))],
-        );
     }
 }

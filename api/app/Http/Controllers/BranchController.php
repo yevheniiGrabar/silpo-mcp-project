@@ -22,7 +22,9 @@ class BranchController extends Controller
 
             return response()->json(['data' => $branches]);
         } catch (\Throwable $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            report($e);
+
+            return response()->json(['message' => 'Сервіс Сільпо тимчасово недоступний'], 503);
         }
     }
 }

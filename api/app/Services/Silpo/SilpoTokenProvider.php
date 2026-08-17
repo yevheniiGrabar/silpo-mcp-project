@@ -24,18 +24,22 @@ class SilpoTokenProvider
             }
         }
 
-        // 2) Демо/неавторизований контекст (веб-демо, CLI silpo:ping, черга):
-        //    беремо токен demo-юзера, збережений після OAuth-логіну Сільпо.
-        $demo = User::where('email', 'demo@mealize.app')->first();
-        if ($demo !== null) {
-            $token = $this->forUser($demo);
-            if ($token !== null) {
-                return $token;
+        // 2) Демо/неавторизований контекст — ЛИШЕ локально (SEC-4): не віддаємо
+        //    живий токен власника demo-акаунта будь-якому аноніму в проді.
+        if (app()->environment('local')) {
+            $demo = User::where('email', config('app.demo_email'))->first();
+            if ($demo !== null) {
+                $token = $this->forUser($demo);
+                if ($token !== null) {
+                    return $token;
+                }
             }
+
+            // Локальний фолбек — статичний токен з .env (якщо заданий).
+            return (string) config('services.silpo.demo_token', '');
         }
 
-        // 3) Останній фолбек — статичний токен з .env (якщо заданий).
-        return (string) config('services.silpo.demo_token', '');
+        return '';
     }
 
     /** Валідний access-токен користувача (null, якщо немає/протух без refresh). */

@@ -23,6 +23,12 @@ class MealPlanRepository
         return MealPlan::with('items')->find($id);
     }
 
+    /** SEC-3: план лише свого власника (проти IDOR). */
+    public function findForUser(User $user, int $id): ?MealPlan
+    {
+        return $user->mealPlans()->with('items')->find($id);
+    }
+
     public function markStatus(MealPlan $plan, string $status, ?string $error = null): MealPlan
     {
         $plan->update(['status' => $status, 'error' => $error]);

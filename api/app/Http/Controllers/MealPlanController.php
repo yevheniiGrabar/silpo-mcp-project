@@ -6,16 +6,16 @@ use App\Http\Requests\StoreMealPlanRequest;
 use App\Http\Requests\SwapItemRequest;
 use App\Http\Resources\MealPlanResource;
 use App\Jobs\GenerateMealPlanJob;
-use App\Models\User;
 use App\Repositories\MealPlanRepository;
 use App\Services\MealPlanService;
 use App\Services\Silpo\CartService;
+use App\Support\ResolvesCurrentUser;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 
 class MealPlanController extends Controller
 {
+    use ResolvesCurrentUser;
+
     public function __construct(
         private readonly MealPlanService $service,
         private readonly MealPlanRepository $plans,
@@ -34,10 +34,10 @@ class MealPlanController extends Controller
             ->setStatusCode(202);
     }
 
-    /** GET /api/meal-plans/{id} — статус + меню + кошик. */
+    /** GET /api/meal-plans/{id} — статус + меню + кошик (лише свій план). */
     public function show(int $id): MealPlanResource|JsonResponse
     {
-        $plan = $this->plans->find($id);
+        $plan = $this->plans->findForUser($this->currentUser(), $id);
 
         return $plan
             ? new MealPlanResource($plan)
@@ -47,7 +47,7 @@ class MealPlanController extends Controller
     /** POST /api/meal-plans/{id}/items/{item}/swap — замінити позицію на альтернативу. */
     public function swap(int $id, int $item, SwapItemRequest $request): MealPlanResource|JsonResponse
     {
-        $plan = $this->plans->find($id);
+        $plan = $this->plans->findForUser($this->currentUser(), $id);
         if (! $plan) {
             return response()->json(['message' => 'Not found'], 404);
         }
@@ -69,7 +69,7 @@ class MealPlanController extends Controller
     /** POST /api/meal-plans/{id}/checkout — зібрати кошик у Сільпо → checkout-лінк. */
     public function checkout(int $id, CartService $cart): JsonResponse
     {
-        $plan = $this->plans->find($id);
+        $plan = $this->plans->findForUser($this->currentUser(), $id);
         if (! $plan) {
             return response()->json(['message' => 'Not found'], 404);
         }
@@ -77,15 +77,9 @@ class MealPlanController extends Controller
         try {
             return response()->json($cart->checkout($plan));
         } catch (\Throwable $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
-        }
-    }
+            report($e); // SEC-5: у лог, не клієнту
 
-    private function currentUser(): User
-    {
-        return Auth::user() ?? User::firstOrCreate(
-            ['email' => 'demo@mealize.app'],
-            ['name' => 'Demo', 'password' => bcrypt(Str::random(40))],
-        );
+            return response()->json(['message' => 'Сервіс Сільпо тимчасово недоступний'], 503);
+        }
     }
 }

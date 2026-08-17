@@ -2,20 +2,20 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Services\Silpo\SilpoClient;
+use App\Support\ResolvesCurrentUser;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
 
 class ProfileController extends Controller
 {
+    use ResolvesCurrentUser;
+
     /** GET /api/me — профіль + статус підключення Сільпо + prefill (родина/дієта). */
     public function show(SilpoClient $silpo): JsonResponse
     {
-        /** @var User|null $user */
-        $user = Auth::user() ?? User::where('email', 'demo@mealize.app')->first();
+        $user = $this->currentUser();
 
-        $connected = $user?->silpoToken()->exists() ?? false;
+        $connected = $user->silpoToken()->exists();
 
         $prefill = null;
         if ($connected) {
@@ -30,7 +30,7 @@ class ProfileController extends Controller
         }
 
         return response()->json([
-            'user' => $user ? ['id' => $user->id, 'name' => $user->name, 'email' => $user->email] : null,
+            'user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email],
             'silpo_connected' => $connected,
             'connect_url' => url('/mcp/silpo/connect'),
             'prefill' => $prefill,
