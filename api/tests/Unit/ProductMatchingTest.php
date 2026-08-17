@@ -27,6 +27,23 @@ class ProductMatchingTest extends TestCase
         $this->assertGreaterThan(0.9, $ranked[0]->confidence);
     }
 
+    public function test_category_profile_picks_right_product_despite_morphology(): void
+    {
+        $svc = new ProductMatchingService(new SilpoClient);
+
+        // «гречка» лексично не збігається з «гречана» (морфологія) — рятує категорія.
+        $products = [
+            new SilpoProduct('flour', 'Борошно гречане Екород 500 г', 90),  // не крупа
+            new SilpoProduct('groats', 'Крупа гречана ядриця 800 г', 66),    // саме те
+            new SilpoProduct('kasha', 'Каша гречана швидка з мʼясом', 40),   // напівфабрикат
+        ];
+
+        $ranked = $svc->rank('гречка', $products, topN: 3, category: 'крупи');
+
+        $this->assertSame('groats', $ranked[0]->sku);           // справжня крупа першою
+        $this->assertNotSame('flour', $ranked[0]->sku);         // борошно демотовано
+    }
+
     public function test_cheaper_relevant_wins_on_tie(): void
     {
         $svc = new ProductMatchingService(new SilpoClient);

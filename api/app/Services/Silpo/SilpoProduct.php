@@ -10,6 +10,7 @@ final readonly class SilpoProduct
         public string $title,
         public int $price,
         public ?int $oldPrice = null,
+        public ?string $category = null, // секція магазину, якщо API її віддає
     ) {}
 
     public function isPromo(): bool

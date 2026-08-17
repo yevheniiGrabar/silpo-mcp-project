@@ -109,22 +109,31 @@ class MealPlanService
         }
     }
 
-    /** @return string[] унікальні нормалізовані назви інгредієнтів */
+    /**
+     * Унікальні інгредієнти по всьому тижню зі структурою для матчингу.
+     *
+     * @return array<int, array{name:string, category:?string, search:array}>
+     */
     private function aggregateIngredients(array $menu): array
     {
-        $names = [];
+        $byName = [];
         foreach ($menu['days'] ?? [] as $day) {
             foreach ($day['meals'] ?? [] as $meal) {
                 foreach ($meal['ingredients'] ?? [] as $ing) {
                     $name = mb_strtolower(trim((string) ($ing['name'] ?? '')));
-                    if ($name !== '') {
-                        $names[$name] = true;
+                    if ($name === '' || isset($byName[$name])) {
+                        continue;
                     }
+                    $byName[$name] = [
+                        'name' => $name,
+                        'category' => isset($ing['category']) ? (string) $ing['category'] : null,
+                        'search' => array_values(array_filter((array) ($ing['search'] ?? []))),
+                    ];
                 }
             }
         }
 
-        return array_keys($names);
+        return array_values($byName);
     }
 
     /**
