@@ -30,6 +30,9 @@ class MealPlanResource extends JsonResource
                 'id' => $i->id,
                 'ingredient' => $i->ingredient,
                 'title' => $i->title,
+                'image' => $i->image_url,
+                'available' => $i->available,
+                'swap_sku' => $i->alt_options[0]['sku'] ?? null, // перша альтернатива для швидкої заміни
                 'sku' => $i->silpo_product_id,
                 'qty' => $i->qty,
                 'price' => $i->price,

@@ -51,12 +51,13 @@ class CartService
 
         // 3) Додати позиції плану (усі в одну філію/компанію самовивозу).
         $products = $plan->items
-            ->filter(fn ($i) => ! empty($i->silpo_product_id))
+            ->filter(fn ($i) => ! empty($i->silpo_product_id) && $i->available !== false)
             ->map(fn ($i) => [
                 'productId' => $i->silpo_product_id,
                 'companyId' => $companyId,
                 'branchId' => $branchId,
-                'quantity' => max(1, (int) $i->qty),
+                // Для вагових шлемо ВАГУ (кг), для штучних — к-сть упаковок.
+                'quantity' => (float) ($i->order_qty ?? max(1, (int) $i->qty)),
             ])->values()->all();
 
         if (empty($products)) {

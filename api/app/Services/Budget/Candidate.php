@@ -21,5 +21,7 @@ final readonly class Candidate
         public ?string $packUnit = null, // 'g' | 'ml' | 'pcs'
         public bool $weighted = false,  // ваговий товар (ціна за кг)
         public float $step = 0,         // крок покупки для вагового (кг)
+        public ?string $image = null,   // URL фото товару
+        public bool $available = true,  // є в наявності (stock > 0)
     ) {}
 }

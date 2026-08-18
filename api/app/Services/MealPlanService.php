@@ -197,10 +197,12 @@ class MealPlanService
                 $leftover = null;
                 $packSize = (int) round($c->step * 1000);             // г у кроці (для показу)
                 $lineTotal = round($c->price * $weightKg, 2);
+                $orderQty = $weightKg;                                // у Сільпо шлемо ВАГУ (кг)
                 $naive += $naivePrice * $weightKg;
             } else {
                 [$qty, $leftover, $packSize] = $this->computePacks($need['qty'], $need['unit'], $c->packSize, $c->packUnit);
                 $lineTotal = round($c->price * $qty, 2);
+                $orderQty = (float) $qty;                             // у Сільпо шлемо к-сть упаковок
                 $naive += $naivePrice * $qty;
             }
             $optimized += $lineTotal;
@@ -210,7 +212,8 @@ class MealPlanService
 
             $reason = $this->substitutionReason($c, $naivePrice);
 
-            return $this->toItemAttributes($c, $qty, $leftover, $packSize, $reason, $lineTotal) + ['alt_options' => $alts];
+            return $this->toItemAttributes($c, $qty, $leftover, $packSize, $reason, $lineTotal)
+                + ['alt_options' => $alts, 'order_qty' => $orderQty, 'image_url' => $c->image, 'available' => $c->available];
         }, array_values($picked));
 
         $result['optimized_total'] = round($optimized, 2);
@@ -403,6 +406,8 @@ class MealPlanService
             'is_promo' => $item->is_promo,
             'is_private_label' => $item->is_private_label,
             'confidence' => $item->match_confidence,
+            'image' => $item->image_url,
+            'available' => $item->available,
         ];
 
         // BE-1: заміна позиції + перерахунок економії — атомарно.
@@ -410,6 +415,8 @@ class MealPlanService
             $this->plans->updateItem($item, [
                 'silpo_product_id' => $target['sku'],
                 'title' => $target['title'],
+                'image_url' => $target['image'] ?? null,
+                'available' => $target['available'] ?? true,
                 'price' => $target['price'],
                 'old_price' => $target['old_price'] ?? null,
                 'price_total' => round((float) $target['price'] * $item->qty, 2),
@@ -442,6 +449,8 @@ class MealPlanService
             'is_promo' => $c->isPromo,
             'is_private_label' => $c->isPrivateLabel,
             'confidence' => $c->confidence,
+            'image' => $c->image,
+            'available' => $c->available,
         ];
     }
 

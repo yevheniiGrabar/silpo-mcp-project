@@ -8,9 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CartItem extends Model
 {
     protected $fillable = [
-        'meal_plan_id', 'ingredient', 'silpo_product_id', 'title', 'qty',
+        'meal_plan_id', 'ingredient', 'silpo_product_id', 'title', 'image_url', 'qty', 'order_qty',
         'price', 'old_price', 'pack_size', 'leftover', 'reason', 'price_total',
-        'is_promo', 'is_private_label', 'match_confidence', 'alt_options',
+        'is_promo', 'is_private_label', 'available', 'match_confidence', 'alt_options',
     ];
 
     protected function casts(): array
@@ -18,10 +18,12 @@ class CartItem extends Model
         return [
             'is_promo' => 'boolean',
             'is_private_label' => 'boolean',
+            'available' => 'boolean',
             'match_confidence' => 'float',
             'price' => 'float',
             'old_price' => 'float',
             'price_total' => 'float',
+            'order_qty' => 'float',
             'alt_options' => 'array',
         ];
     }
