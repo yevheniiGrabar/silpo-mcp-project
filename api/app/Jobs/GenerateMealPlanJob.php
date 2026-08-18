@@ -17,8 +17,11 @@ class GenerateMealPlanJob implements ShouldQueue
 
     public int $tries = 2;
 
-    /** Генерація (агент + матчинг + MCP) буває довгою — не вбивати воркером. */
-    public int $timeout = 240;
+    /**
+     * AI-3: сервіс робить до 2 спроб агента по ~180с — timeout має вміщати обидві +
+     * backoff + матчинг. Воркер запускати з `--timeout` не меншим за це значення.
+     */
+    public int $timeout = 400;
 
     public int $backoff = 5;
 

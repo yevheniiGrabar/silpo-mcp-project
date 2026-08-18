@@ -20,7 +20,7 @@ use Laravel\Mcp\Facades\Mcp;
  * Повний system-prompt і правила — docs/02-AI-AGENT.md.
  */
 #[Provider(Lab::Anthropic)]
-#[Model('claude-sonnet-5')]
+#[Model('claude-sonnet-5')] // надійно тримає велике структуроване меню 7×3 (Haiku давав порожньо ~50%)
 class MealPlannerAgent implements Agent, HasStructuredOutput, HasTools
 {
     use Promptable;
@@ -105,7 +105,10 @@ class MealPlannerAgent implements Agent, HasStructuredOutput, HasTools
         12. Для КОЖНОЇ страви вкажи kcal — орієнтовну калорійність порції на 1 особу,
             та photo_hint — короткий опис ГОТОВОЇ страви для фото (що видно на тарілці:
             основне, гарнір, зелень, подача), без брендів і без тексту.
-        13. Поверни СТРОГО у форматі схеми (JSON), без зайвого тексту.
+        13. Для КОЖНОЇ страви додай note — дуже короткий (2-4 слова) нутриційний акцент
+            українською, що корисного дає страва (напр. "Білок, легко", "Повільні вуглеводи",
+            "Омега-3, клітковина", "Багато білка"). Без крапки в кінці.
+        14. Поверни СТРОГО у форматі схеми (JSON), без зайвого тексту.
         PROMPT;
     }
 
@@ -130,6 +133,7 @@ class MealPlannerAgent implements Agent, HasStructuredOutput, HasTools
                             'cook_minutes' => $s->integer()->required(),
                             'kcal' => $s->integer()->required(), // орієнтовна калорійність порції на 1 особу
                             'photo_hint' => $s->string(),        // короткий опис вигляду страви для фото
+                            'note' => $s->string(),              // короткий нутриційний акцент (2-4 слова)
                             'ingredients' => $s->array()->items(
                                 $s->object(fn (JsonSchema $s) => [
                                     'name' => $s->string()->required(),

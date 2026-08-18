@@ -74,16 +74,8 @@ class MealPlanService
             }
 
             // 1) Агент будує меню (сам читає акції/профіль через MCP-tools).
-            // Структурований вивід laravel/ai лежить у $response->structured (['days'=>...]).
-            // Тяжкий структурований вивід (меню + категорії + search + photo_hint) →
-            // піднімаємо таймаут запиту до моделі, щоб не рвалось на 60с.
-            $response = (new MealPlannerAgent)->prompt($this->userPrompt($plan), timeout: 180);
-            $menu = is_array($response->structured ?? null) ? $response->structured : [];
-
-            // AI-1: порожнє/невалідне меню — це помилка, а не «успішний» пустий план.
-            if (empty($menu['days'])) {
-                throw new \RuntimeException('Агент не повернув меню');
-            }
+            //    AI-3: з ретраєм на транзієнтних збоях моделі (таймаут/429/5xx/529).
+            $menu = $this->generateMenu($plan);
 
             $this->rebuildCart($plan, $menu);
 
@@ -91,6 +83,60 @@ class MealPlanService
         } catch (Throwable $e) {
             return $this->plans->markStatus($plan, 'failed', $e->getMessage());
         }
+    }
+
+    /**
+     * AI-3: виклик планувальника з ретраєм на транзієнтних збоях (таймаут Anthropic,
+     * 429/5xx/529, обрив зʼєднання) та на разовому порожньому меню. Структурований
+     * вивід laravel/ai лежить у $response->structured (['days'=>...]).
+     */
+    private function generateMenu(MealPlan $plan): array
+    {
+        $attempts = 2;                 // 1 ретрай: покриває разовий блип моделі
+        $perAttemptTimeout = 180;      // с; Sonnet на великому меню; 2×180 + backoff у timeout job'а
+        $lastError = null;
+
+        for ($i = 1; $i <= $attempts; $i++) {
+            try {
+                $response = (new MealPlannerAgent)->prompt($this->userPrompt($plan), timeout: $perAttemptTimeout);
+                $menu = is_array($response->structured ?? null) ? $response->structured : [];
+
+                // AI-1: порожнє/невалідне меню — помилка, а не «успішний» пустий план.
+                if (empty($menu['days'])) {
+                    throw new \RuntimeException('Агент не повернув меню');
+                }
+
+                return $menu;
+            } catch (Throwable $e) {
+                $lastError = $e;
+                if ($i < $attempts && $this->isTransientAi($e)) {
+                    usleep(2_000_000 * $i); // backoff 2с, 4с…
+                    continue;
+                }
+                throw $e;
+            }
+        }
+
+        throw $lastError ?? new \RuntimeException('Агент не повернув меню');
+    }
+
+    /** Транзієнтний збій моделі — варто повторити (мережа/латентність/перевантаження). */
+    private function isTransientAi(Throwable $e): bool
+    {
+        $m = mb_strtolower($e->getMessage());
+
+        foreach ([
+            'curl error 28', 'timed out', 'timeout', 'operation timed out',
+            'connection', 'reset by peer', 'overloaded', 'try again',
+            '429', '500', '502', '503', '504', '529',
+            'не повернув меню', // разовий порожній вивід моделі
+        ] as $needle) {
+            if (str_contains($m, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -135,13 +181,13 @@ class MealPlanService
             (int) $result['effective_limit'],
         );
 
-        $optimized = 0;
-        $naive = 0;
+        $optimized = 0.0;
+        $naive = 0.0;
         $items = array_map(function (Candidate $c) use ($byIngredient, $needByName, &$optimized, &$naive) {
             $need = $needByName[$c->ingredient] ?? ['qty' => 0.0, 'unit' => 'g'];
             [$qty, $leftover, $packSize] = $this->computePacks($need['qty'], $need['unit'], $c->packSize, $c->packUnit);
             $group = $byIngredient->get($c->ingredient, collect());
-            $naivePrice = (int) ($group->max(fn (Candidate $x) => $x->price) ?? $c->price);
+            $naivePrice = (float) ($group->max(fn (Candidate $x) => $x->price) ?? $c->price);
             $optimized += $c->price * $qty;
             $naive += $naivePrice * $qty;
 
@@ -153,10 +199,13 @@ class MealPlanService
             return $this->toItemAttributes($c, $qty, $leftover, $packSize, $reason) + ['alt_options' => $alts];
         }, array_values($picked));
 
-        $result['optimized_total'] = $optimized;
-        $result['naive_total'] = $naive;
-        $result['savings'] = max(0, $naive - $optimized);
-        $result['within_budget'] = $optimized <= (int) $result['effective_limit'];
+        $result['optimized_total'] = round($optimized, 2);
+        $result['naive_total'] = round($naive, 2);
+        $result['savings'] = round(max(0, $naive - $optimized), 2);
+        $result['within_budget'] = $optimized <= (float) $result['effective_limit'];
+
+        // Ціна на кожну страву = частка вартості кошика пропорційно вжитку інгредієнтів.
+        $menu = $this->attachMealPrices($menu, $items);
 
         $this->plans->replaceItems($plan, $items);
         $this->plans->saveResult($plan, $result, $menu); // зберігаємо ПОВНЕ меню на тиждень
@@ -165,6 +214,48 @@ class MealPlanService
         }
 
         return $plan->fresh('items');
+    }
+
+    /**
+     * Проставити price на кожну страву в меню: частка вартості кошика (price_total
+     * обраних товарів) пропорційно к-сті інгредієнта в страві до тижневої потреби.
+     * Сума цін страв ≈ optimized_total. Стійко до одиниць (працює на частках).
+     *
+     * @param  array<int, array{ingredient:string, price_total:int}>  $items
+     */
+    private function attachMealPrices(array $menu, array $items): array
+    {
+        // Вартість кошика по інгредієнту (lowercase name → price_total).
+        $totals = [];
+        foreach ($items as $it) {
+            $name = mb_strtolower(trim((string) ($it['ingredient'] ?? '')));
+            if ($name !== '') {
+                $totals[$name] = ($totals[$name] ?? 0) + (int) ($it['price_total'] ?? 0);
+            }
+        }
+
+        // Тижнева потреба по інгредієнту (сума qty по всьому меню).
+        $need = [];
+        foreach ($this->aggregateIngredients($menu) as $ing) {
+            $need[$ing['name']] = (float) $ing['qty'];
+        }
+
+        foreach ($menu['days'] ?? [] as $di => $day) {
+            foreach ($day['meals'] ?? [] as $mi => $meal) {
+                $price = 0.0;
+                foreach ($meal['ingredients'] ?? [] as $ing) {
+                    $name = mb_strtolower(trim((string) ($ing['name'] ?? '')));
+                    $weekQty = $need[$name] ?? 0.0;
+                    if ($name === '' || $weekQty <= 0 || ! isset($totals[$name])) {
+                        continue;
+                    }
+                    $price += $totals[$name] * ((float) ($ing['qty'] ?? 0) / $weekQty);
+                }
+                $menu['days'][$di]['meals'][$mi]['price'] = (int) round($price);
+            }
+        }
+
+        return $menu;
     }
 
     /**
@@ -218,13 +309,13 @@ class MealPlanService
      */
     private function squeezeToBudget(array $chosen, $byIngredient, array $needByName, int $limit): array
     {
-        $weekly = function (Candidate $c) use ($needByName): int {
+        $weekly = function (Candidate $c) use ($needByName): float {
             $need = $needByName[$c->ingredient] ?? ['qty' => 0.0, 'unit' => 'g'];
             [$packs] = $this->computePacks($need['qty'], $need['unit'], $c->packSize, $c->packUnit);
 
             return $c->price * $packs;
         };
-        $total = fn (): int => array_sum(array_map($weekly, $chosen));
+        $total = fn (): float => array_sum(array_map($weekly, $chosen));
 
         $guard = 0;
         while ($total() > $limit && $guard++ < 200) {
@@ -307,7 +398,7 @@ class MealPlanService
                 'title' => $target['title'],
                 'price' => $target['price'],
                 'old_price' => $target['old_price'] ?? null,
-                'price_total' => (int) $target['price'] * $item->qty,
+                'price_total' => round((float) $target['price'] * $item->qty, 2),
                 'is_promo' => $target['is_promo'] ?? false,
                 'is_private_label' => $target['is_private_label'] ?? false,
                 'match_confidence' => $target['confidence'] ?? 1,
@@ -347,9 +438,9 @@ class MealPlanService
             'silpo_product_id' => $c->sku,
             'title' => $c->title,
             'qty' => $qty,
-            'price' => $c->price,
-            'old_price' => $c->oldPrice,
-            'price_total' => $c->price * $qty,
+            'price' => round($c->price, 2),
+            'old_price' => $c->oldPrice !== null ? round($c->oldPrice, 2) : null,
+            'price_total' => round($c->price * $qty, 2),
             'pack_size' => $packSize,
             'leftover' => $leftover,
             'reason' => $reason,
@@ -360,7 +451,7 @@ class MealPlanService
     }
 
     /** SubstitutionExplainer: чому саме цей товар («Власна марка, дешевше на 20 ₴»). */
-    private function substitutionReason(Candidate $c, int $naivePrice): ?string
+    private function substitutionReason(Candidate $c, float $naivePrice): ?string
     {
         $parts = [];
         if ($c->isPromo) {
@@ -371,7 +462,7 @@ class MealPlanService
             $parts[] = 'Власна марка';
         }
         if ($naivePrice > $c->price) {
-            $parts[] = 'дешевше на '.($naivePrice - $c->price).' ₴';
+            $parts[] = 'дешевше на '.(int) round($naivePrice - $c->price).' ₴';
         }
 
         return $parts === [] ? null : implode(', ', $parts);

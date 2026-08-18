@@ -33,7 +33,8 @@ class MealSwapAgent implements Agent, HasStructuredOutput
 
         Для КОЖНОГО інгредієнта заповни: name (проста назва укр), category (з переліку схеми),
         search (1-3 «магазинних» запити без брендів), qty (кулінарна к-сть на сім'ю), unit (g/ml/pcs).
-        Додай kcal (орієнтовно на 1 порцію) і photo_hint (короткий опис вигляду страви).
+        Додай kcal (орієнтовно на 1 порцію), photo_hint (короткий опис вигляду страви)
+        та note (короткий нутриційний акцент, 2-4 слова, напр. "Білок, легко").
         Назви — без брендів. Поверни СТРОГО у форматі схеми, без зайвого тексту.
         PROMPT;
     }
@@ -45,6 +46,7 @@ class MealSwapAgent implements Agent, HasStructuredOutput
             'cook_minutes' => $schema->integer()->required(),
             'kcal' => $schema->integer()->required(),
             'photo_hint' => $schema->string(),
+            'note' => $schema->string(),
             'ingredients' => $schema->array()->min(1)->max(12)->items(
                 $schema->object(fn (JsonSchema $s) => [
                     'name' => $s->string()->required(),
