@@ -46,6 +46,7 @@ class MealPlanService
             'health_filters' => $dto['health_filters'] ?? [],
             'mode' => $dto['mode'] ?? 'economy',
             'budget_flex_pct' => $dto['budget_flex_pct'] ?? 0,
+            'shopping_days' => $dto['days'] ?? 7, // меню й список — на стільки днів
             'appliances' => $dto['appliances'] ?? ['stove', 'oven'],
             'max_cook_minutes' => $dto['max_cook_minutes'] ?? 60,
             'allergies' => $dto['allergies'] ?? [],
@@ -185,18 +186,31 @@ class MealPlanService
         $naive = 0.0;
         $items = array_map(function (Candidate $c) use ($byIngredient, $needByName, &$optimized, &$naive) {
             $need = $needByName[$c->ingredient] ?? ['qty' => 0.0, 'unit' => 'g'];
-            [$qty, $leftover, $packSize] = $this->computePacks($need['qty'], $need['unit'], $c->packSize, $c->packUnit);
             $group = $byIngredient->get($c->ingredient, collect());
             $naivePrice = (float) ($group->max(fn (Candidate $x) => $x->price) ?? $c->price);
-            $optimized += $c->price * $qty;
-            $naive += $naivePrice * $qty;
+
+            if ($c->weighted && $c->step > 0) {
+                // Ваговий товар: ціна за кг, купуємо кратно step (кг).
+                $needKg = $this->toKg($need['qty'], $need['unit'], $c->step);
+                $qty = max(1, (int) ceil($needKg / $c->step));         // к-сть кроків
+                $weightKg = round($qty * $c->step, 3);
+                $leftover = null;
+                $packSize = (int) round($c->step * 1000);             // г у кроці (для показу)
+                $lineTotal = round($c->price * $weightKg, 2);
+                $naive += $naivePrice * $weightKg;
+            } else {
+                [$qty, $leftover, $packSize] = $this->computePacks($need['qty'], $need['unit'], $c->packSize, $c->packUnit);
+                $lineTotal = round($c->price * $qty, 2);
+                $naive += $naivePrice * $qty;
+            }
+            $optimized += $lineTotal;
 
             $alts = $group->reject(fn (Candidate $x) => $x->sku === $c->sku)
                 ->map($this->altShape(...))->values()->all();
 
             $reason = $this->substitutionReason($c, $naivePrice);
 
-            return $this->toItemAttributes($c, $qty, $leftover, $packSize, $reason) + ['alt_options' => $alts];
+            return $this->toItemAttributes($c, $qty, $leftover, $packSize, $reason, $lineTotal) + ['alt_options' => $alts];
         }, array_values($picked));
 
         $result['optimized_total'] = round($optimized, 2);
@@ -431,7 +445,16 @@ class MealPlanService
         ];
     }
 
-    private function toItemAttributes(Candidate $c, int $qty = 1, ?int $leftover = null, ?int $packSize = null, ?string $reason = null): array
+    /** г/мл → кг; для вагового у pcs беремо один крок. */
+    private function toKg(float $qty, string $unit, float $step): float
+    {
+        return match ($unit) {
+            'g', 'ml' => $qty / 1000,
+            default => $step > 0 ? $step : 0.1, // pcs у вагового — рідко; беремо крок
+        };
+    }
+
+    private function toItemAttributes(Candidate $c, int $qty = 1, ?int $leftover = null, ?int $packSize = null, ?string $reason = null, ?float $priceTotal = null): array
     {
         return [
             'ingredient' => $c->ingredient,
@@ -440,7 +463,7 @@ class MealPlanService
             'qty' => $qty,
             'price' => round($c->price, 2),
             'old_price' => $c->oldPrice !== null ? round($c->oldPrice, 2) : null,
-            'price_total' => round($c->price * $qty, 2),
+            'price_total' => $priceTotal !== null ? round($priceTotal, 2) : round($c->price * $qty, 2),
             'pack_size' => $packSize,
             'leftover' => $leftover,
             'reason' => $reason,
@@ -477,16 +500,19 @@ class MealPlanService
         $diet = $this->dietLabel($p->diet_system);
         $flex = $p->mode === 'quality' && ($p->budget_flex_pct ?? 0) > 0
             ? " (+ до {$p->budget_flex_pct}% зверху дозволено)" : '';
+        $days = max(1, min(7, (int) ($p->shopping_days ?? 7)));
+        $periodBudget = (int) round($p->budget * $days / 7); // орієнтир витрат на обраний період
 
         return <<<TXT
         Режим: {$p->mode}. Людей: {$p->people}.
-        Бюджет-орієнтир: {$p->budget} ₴/тиждень{$flex}.
+        Кількість днів у меню: РІВНО {$days} (не більше й не менше; кожен день унікальний).
+        Бюджет-орієнтир: ~{$periodBudget} ₴ на ці {$days} дн. (з тижневого {$p->budget} ₴){$flex}.
         Система харчування (ЖОРСТКЕ правило): {$diet}.
         Бажані кухні (м'яке вподобання): {$cuisines}.
         Здорові фільтри (цілі складу): {$health}.
         Алергії/виключення (НІКОЛИ не додавай навіть слідів): {$allergies}.
         Доступна техніка: {$appliances}. Ліміт часу на страву: {$p->max_cook_minutes} хв.
-        Склади меню на тиждень СУВОРО за системою харчування та правилами. Спочатку перевір сьогоднішні акції.
+        Склади меню рівно на {$days} днів СУВОРО за системою харчування та правилами. Спочатку перевір сьогоднішні акції.
         TXT;
     }
 

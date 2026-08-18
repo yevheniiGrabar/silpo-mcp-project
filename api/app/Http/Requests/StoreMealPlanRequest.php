@@ -15,6 +15,7 @@ class StoreMealPlanRequest extends FormRequest
     {
         return [
             'budget' => ['required', 'integer', 'min:200', 'max:100000'],
+            'days' => ['nullable', 'integer', 'in:1,2,3,5,7'], // на скільки днів меню
             'mode' => ['required', 'in:economy,quality'],
             'budget_flex_pct' => ['nullable', 'integer', 'min:0', 'max:50'],
             'people' => ['nullable', 'integer', 'min:1', 'max:10'],
