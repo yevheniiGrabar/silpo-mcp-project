@@ -19,5 +19,7 @@ final readonly class Candidate
         public ?float $oldPrice = null, // ціна до знижки в ₴ (для розрахунку економії)
         public ?float $packSize = null, // розмір фасовки (у packUnit)
         public ?string $packUnit = null, // 'g' | 'ml' | 'pcs'
+        public bool $weighted = false,  // ваговий товар (ціна за кг)
+        public float $step = 0,         // крок покупки для вагового (кг)
     ) {}
 }

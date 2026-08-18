@@ -13,6 +13,8 @@ final readonly class SilpoProduct
         public ?string $category = null,   // секція магазину, якщо API її віддає
         public ?float $packSize = null,    // розмір фасовки (у packUnit): 800, 0.9…
         public ?string $packUnit = null,   // 'g' | 'ml' | 'pcs'
+        public bool $weighted = false,     // ваговий товар (ціна за кг, крок step)
+        public float $step = 0,            // крок покупки для вагового (кг)
     ) {}
 
     public function isPromo(): bool
