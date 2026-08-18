@@ -24,6 +24,9 @@ class MealPlan extends Model
             'cuisines' => 'array',
             'health_filters' => 'array',
             'plan_json' => 'array',
+            'naive_total' => 'float',
+            'optimized_total' => 'float',
+            'savings' => 'float',
         ];
     }
 

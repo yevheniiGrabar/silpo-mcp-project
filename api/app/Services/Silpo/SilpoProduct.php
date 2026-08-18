@@ -8,8 +8,8 @@ final readonly class SilpoProduct
     public function __construct(
         public string $id,
         public string $title,
-        public int $price,
-        public ?int $oldPrice = null,
+        public float $price,
+        public ?float $oldPrice = null,
         public ?string $category = null,   // секція магазину, якщо API її віддає
         public ?float $packSize = null,    // розмір фасовки (у packUnit): 800, 0.9…
         public ?string $packUnit = null,   // 'g' | 'ml' | 'pcs'

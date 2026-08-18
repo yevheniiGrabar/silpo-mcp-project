@@ -20,7 +20,7 @@ final class BudgetOptimizerService
         $byIngredient = collect($candidates)->groupBy('ingredient');
 
         // Наївний кошик = перший кандидат кожного інгредієнта (best-name-match порядок на вході).
-        $naiveTotal = $byIngredient->map(fn (Collection $c) => $c->first()->price)->sum();
+        $naiveTotal = round($byIngredient->map(fn (Collection $c) => $c->first()->price)->sum(), 2);
 
         // Ефективний ліміт: economy = бюджет; quality = бюджет + flex%.
         $effectiveLimit = $mode === 'quality'
@@ -31,14 +31,14 @@ final class BudgetOptimizerService
             ? $this->pickQuality($c)
             : $this->pickEconomy($c));
 
-        $optimizedTotal = $picked->map(fn (Candidate $x) => $x->price)->sum();
+        $optimizedTotal = round($picked->map(fn (Candidate $x) => $x->price)->sum(), 2);
 
         return [
             'mode' => $mode,
             'items' => $picked->values()->all(),
             'naive_total' => $naiveTotal,
             'optimized_total' => $optimizedTotal,
-            'savings' => max(0, $naiveTotal - $optimizedTotal),
+            'savings' => round(max(0, $naiveTotal - $optimizedTotal), 2),
             'effective_limit' => $effectiveLimit,
             'within_budget' => $optimizedTotal <= $effectiveLimit,
         ];

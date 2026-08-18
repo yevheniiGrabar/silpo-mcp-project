@@ -19,6 +19,9 @@ class CartItem extends Model
             'is_promo' => 'boolean',
             'is_private_label' => 'boolean',
             'match_confidence' => 'float',
+            'price' => 'float',
+            'old_price' => 'float',
+            'price_total' => 'float',
             'alt_options' => 'array',
         ];
     }

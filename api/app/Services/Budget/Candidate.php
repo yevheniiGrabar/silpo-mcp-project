@@ -12,11 +12,11 @@ final readonly class Candidate
         public string $ingredient,   // нормалізована назва інгредієнта
         public string $sku,          // silpo product id
         public string $title,        // назва товару
-        public int $price,           // ціна за одиницю (акційна/поточна)
+        public float $price,         // ціна за одиницю в ₴ з копійками (акційна/поточна)
         public bool $isPromo = false,
         public bool $isPrivateLabel = false,
         public float $confidence = 1.0, // 0..1 впевненість матчингу
-        public ?int $oldPrice = null,   // ціна до знижки (для розрахунку економії)
+        public ?float $oldPrice = null, // ціна до знижки в ₴ (для розрахунку економії)
         public ?float $packSize = null, // розмір фасовки (у packUnit)
         public ?string $packUnit = null, // 'g' | 'ml' | 'pcs'
     ) {}

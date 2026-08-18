@@ -24,9 +24,9 @@ class BudgetOptimizerTest extends TestCase
 
         $r = $this->optimizer()->optimize($candidates, budget: 200, mode: 'economy');
 
-        $this->assertSame(105, $r['naive_total']);      // 45 + 60 (перші кандидати)
-        $this->assertSame(69, $r['optimized_total']);   // 29 + 40 (найдешевші)
-        $this->assertSame(36, $r['savings']);
+        $this->assertEquals(105, $r['naive_total']);      // 45 + 60 (перші кандидати)
+        $this->assertEquals(69, $r['optimized_total']);   // 29 + 40 (найдешевші)
+        $this->assertEquals(36, $r['savings']);
         $this->assertTrue($r['within_budget']);
     }
 
@@ -53,6 +53,6 @@ class BudgetOptimizerTest extends TestCase
         $r = $this->optimizer()->optimize($candidates, budget: 100, mode: 'economy');
 
         $this->assertFalse($r['within_budget']);
-        $this->assertSame(500, $r['optimized_total']);
+        $this->assertEquals(500, $r['optimized_total']);
     }
 }

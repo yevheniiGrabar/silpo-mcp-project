@@ -47,7 +47,7 @@ class SwapItemTest extends TestCase
 
         $item->refresh();
         $this->assertSame('b', $item->silpo_product_id);
-        $this->assertSame(29, $item->price);
+        $this->assertEquals(29, $item->price);
         // Попередня позиція стала альтернативою (можна повернути).
         $this->assertSame('a', $item->alt_options[0]['sku']);
     }
