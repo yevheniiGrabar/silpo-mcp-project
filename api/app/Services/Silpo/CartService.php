@@ -7,10 +7,16 @@ use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
- * Канонічний флоу оформлення в Сільпо (docs/06):
- * get_my_shopping_cart → get_shopping_cart_by_id → (update_shopping_cart) →
- * add_or_update_cart_products → get_shopping_cart_by_id → checkoutWebLink.
- * Кошик НЕ створюється через MCP — має бути активний кошик гостя.
+ * Канонічний флоу наповнення кошика в Сільпо (перевірено на живому MCP):
+ *   silpo_get_my_shopping_cart          → shoppingCartId (кошик існує на боці Сільпо)
+ *   silpo_get_shopping_cart_by_id       → cart.shipments[0] (branchId+companyId), cart.calculation
+ *   (silpo_update_shopping_cart)        → перемкнути філію за потреби
+ *   silpo_add_or_update_cart_products   → додати позиції {productId, companyId, branchId, quantity}
+ *   silpo_get_shopping_cart_by_id       → підсумок (calculation.total) + валідації
+ *
+ * Важливо: MCP НЕ повертає checkout-лінк. Оформлення/оплату користувач завершує
+ * у застосунку Сільпо — кошик спільний з його акаунтом. Кошик через MCP не
+ * створюється: має бути активний кошик гостя.
  */
 class CartService
 {
@@ -18,54 +24,89 @@ class CartService
 
     public function checkout(MealPlan $plan): array
     {
-        // 1) Активний кошик гостя (обов'язково перший крок).
-        $cart = $this->content($this->silpo->call('silpo_get_my_shopping_cart'));
-        $cartId = $cart['id'] ?? $cart['shoppingCartId'] ?? null;
+        // 1) Активний кошик гостя.
+        $mine = $this->silpo->callData('silpo_get_my_shopping_cart');
+        $cartId = $mine['shoppingCartId'] ?? ($mine['cart']['id'] ?? null);
         if (! $cartId) {
             throw new RuntimeException('Немає активного кошика Сільпо (створюється на боці Сільпо).');
         }
 
-        // 2) Контекст кошика (branch/deliveryType/timeslot).
-        $ctx = $this->content($this->silpo->call('silpo_get_shopping_cart_by_id', ['shoppingCartId' => $cartId]));
-        $branchId = $ctx['branchId'] ?? $plan->branch_id;
-        $companyId = $ctx['companyId'] ?? null;
+        // 2) Стан кошика: shipments[0] дає branchId+companyId (обов'язкові для додавання).
+        $cart = $this->cartById($cartId);
+        [$branchId, $companyId] = $this->fulfilment($cart);
 
-        if ($plan->branch_id && $plan->branch_id !== ($ctx['branchId'] ?? null)) {
-            $this->silpo->call('silpo_update_shopping_cart', ['shoppingCartId' => $cartId, 'branchId' => $plan->branch_id]);
-            $branchId = $plan->branch_id;
+        // 2a) Якщо план прив'язаний до іншої філії — перемкнути кошик і перечитати.
+        if ($plan->branch_id && $branchId && $plan->branch_id !== $branchId) {
+            $this->silpo->call('silpo_update_shopping_cart', [
+                'shoppingCartId' => $cartId,
+                'branchId' => $plan->branch_id,
+            ]);
+            $cart = $this->cartById($cartId);
+            [$branchId, $companyId] = $this->fulfilment($cart);
         }
 
-        // 3) Додати всі позиції кошика.
-        $products = $plan->items->map(fn ($i) => array_filter([
-            'productId' => $i->silpo_product_id,
-            'companyId' => $companyId,
-            'branchId' => $branchId,
-            'quantity' => $i->qty,
-        ], fn ($v) => $v !== null))->values()->all();
+        if (! $branchId || ! $companyId) {
+            throw new RuntimeException('Кошик Сільпо без філії — відкрий Сільпо й обери магазин або самовивіз.');
+        }
 
-        $this->silpo->call('silpo_add_or_update_cart_products', [
+        // 3) Додати позиції плану (усі в одну філію/компанію самовивозу).
+        $products = $plan->items
+            ->filter(fn ($i) => ! empty($i->silpo_product_id))
+            ->map(fn ($i) => [
+                'productId' => $i->silpo_product_id,
+                'companyId' => $companyId,
+                'branchId' => $branchId,
+                'quantity' => max(1, (int) $i->qty),
+            ])->values()->all();
+
+        if (empty($products)) {
+            throw new RuntimeException('У плані немає товарів для кошика.');
+        }
+
+        $add = $this->silpo->call('silpo_add_or_update_cart_products', [
             'shoppingCartId' => $cartId,
             'products' => $products,
         ]);
+        if ($add->isError) {
+            throw new RuntimeException('Silpo MCP: '.$add->text());
+        }
         Log::channel('silpo-mcp')->info('add_or_update_cart_products', ['cartId' => $cartId, 'count' => count($products)]);
 
-        // 4) Фінальний стан кошика → checkout-лінки.
-        $final = $this->content($this->silpo->call('silpo_get_shopping_cart_by_id', ['shoppingCartId' => $cartId]));
+        // 4) Фінальний підсумок. Checkout-лінк MCP не віддає — оформлення в застосунку Сільпо.
+        $final = $this->cartById($cartId);
+        $calc = $final['calculation'] ?? [];
 
         return [
-            'checkout_web' => $final['checkoutWebLink'] ?? null,
-            'checkout_mobile' => $final['checkoutMobileLink'] ?? null,
-            'total' => $final['total'] ?? null,
-            'validations' => $final['validations'] ?? [],
+            'cart_id' => $cartId,
+            'added' => count($products),
+            'total' => $calc['total'] ?? null,
+            'products_total' => $calc['productsTotal'] ?? null,
+            'validations' => $calc['validations'] ?? [],
+            'finish_in_silpo' => true, // немає MCP-лінку: заказ завершується в застосунку Сільпо
+            'checkout_web' => null,
+            'checkout_mobile' => null,
         ];
     }
 
-    private function content($result): array
+    /** Читання кошика за id → об'єкт cart (дані вкладені під ключем "cart"). */
+    private function cartById(string $cartId): array
     {
-        if ($result->isError) {
-            throw new RuntimeException('Silpo MCP: '.$result->text());
+        $resp = $this->silpo->call('silpo_get_shopping_cart_by_id', ['shoppingCartId' => $cartId]);
+        if ($resp->isError) {
+            throw new RuntimeException('Silpo MCP: '.$resp->text());
         }
+        $data = is_array($resp->structuredContent) && $resp->structuredContent !== []
+            ? $resp->structuredContent
+            : (json_decode($resp->text(), true) ?: []);
 
-        return is_array($result->structuredContent) ? $result->structuredContent : [];
+        return $data['cart'] ?? $data;
+    }
+
+    /** branchId+companyId філії виконання з першого shipment кошика. */
+    private function fulfilment(array $cart): array
+    {
+        $shipment = $cart['shipments'][0] ?? [];
+
+        return [$shipment['branchId'] ?? null, $shipment['companyId'] ?? null];
     }
 }

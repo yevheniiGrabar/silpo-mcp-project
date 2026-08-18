@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Silpo\SilpoTokenProvider;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Laravel\Mcp\Client\OAuth\TokenSet;
@@ -26,6 +27,10 @@ class SilpoOAuthController extends Controller
         );
 
         $tokens->storeFor($user, $token);
+
+        // #1 (страховка до #3): сигналимо довгоживучим воркерам м'яко перезапуститися,
+        // щоб гарантовано підхопити новий токен (і будь-які зміни коду) після підключення.
+        Artisan::call('queue:restart');
 
         return response()->json([
             'connected' => true,

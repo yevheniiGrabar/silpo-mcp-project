@@ -4,8 +4,11 @@ namespace App\Providers;
 
 use App\Ai\Tools\ToolActionContext;
 use App\Services\Silpo\SilpoTokenProvider;
+use Illuminate\Queue\Events\JobProcessing;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Mcp\Client;
+use Laravel\Mcp\Client\ClientManager;
 use Laravel\Mcp\Facades\Mcp;
 
 class AppServiceProvider extends ServiceProvider
@@ -32,5 +35,17 @@ class AppServiceProvider extends ServiceProvider
         Mcp::registerClient('silpo', fn () => Client::web(config('services.silpo.mcp_url'))
             ->withOAuth()
             ->withToken(fn () => app(SilpoTokenProvider::class)->currentAccessToken()));
+
+        // #3 — свіжий MCP-клієнт на кожен queue-job. ClientManager — синглтон і
+        // кешує Client (з токеном, взятим при першому build) на весь процес; у
+        // довгоживучому `queue:work` це призводить до протухлого токена (401).
+        // HTTP-запити скидають клієнт самі (app terminating), а воркер — ні,
+        // тож перед кожним job примусово роз'єднуємо → наступний виклик
+        // перебудує клієнт зі свіжим токеном із silpo_tokens.
+        Event::listen(JobProcessing::class, function (): void {
+            if ($this->app->resolved(ClientManager::class)) {
+                $this->app->make(ClientManager::class)->disconnectAll();
+            }
+        });
     }
 }
