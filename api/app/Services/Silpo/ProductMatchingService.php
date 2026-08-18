@@ -29,6 +29,9 @@ class ProductMatchingService
     /** Універсально «не для готування» — штрафуємо в будь-якій категорії. */
     private const GLOBAL_FORBID = [
         'корм', 'для тварин', 'дитяч', 'малятк', 'агуня', 'малюк', 'jerky',
+        // Не-їжа, що засмічує пошук (напр. «Прикраса декоративна Яйце»):
+        'прикрас', 'декор', 'іграшк', 'сувенір', 'свічк', 'підвіс', 'підвісц',
+        'серветк', 'посуд', 'мило', 'засіб', 'освіжувач', 'пакет для',
     ];
 
     /**
@@ -280,13 +283,18 @@ class ProductMatchingService
                 if (($item['available'] ?? true) === false) {
                     continue;
                 }
-                [$packSize, $packUnit] = $this->parsePack((string) ($item['name'] ?? ''));
+                // Розмір фасовки — з displayRatio Сільпо («10шт», «180г», «900мл»),
+                // фолбек — назва товару.
+                [$packSize, $packUnit] = $this->parsePack(
+                    (string) ($item['displayRatio'] ?? ''),
+                    (string) ($item['name'] ?? ''),
+                );
                 $result[$query][] = new SilpoProduct(
                     id: (string) ($item['id'] ?? ''),
                     title: (string) ($item['name'] ?? ''),
-                    price: (int) round((float) ($item['price'] ?? 0)),
+                    price: round((float) ($item['price'] ?? 0), 2), // ₴ з копійками
                     oldPrice: isset($item['oldPrice']) && $item['oldPrice'] !== null
-                        ? (int) round((float) $item['oldPrice']) : null,
+                        ? round((float) $item['oldPrice'], 2) : null,
                     category: isset($item['category']) ? (string) $item['category'] : null,
                     packSize: $packSize,
                     packUnit: $packUnit,
@@ -298,14 +306,16 @@ class ProductMatchingService
     }
 
     /**
-     * Витягти розмір фасовки з назви товару («… 900 мл», «800 г», «1 кг», «10 шт»).
-     * Повертає [розмір у базовій одиниці (g/ml) або к-сть, packUnit] або [null, null].
+     * Витягти розмір фасовки. Спершу з displayRatio Сільпо («10шт», «180г», «900мл»,
+     * «1кг»), інакше — з назви товару. Повертає [розмір у базовій одиниці (g/ml) або
+     * к-сть, packUnit] або [null, null].
      *
      * @return array{0: ?float, 1: ?string}
      */
-    private function parsePack(string $title): array
+    private function parsePack(string $displayRatio, string $title = ''): array
     {
-        if (! preg_match('/(\d+(?:[.,]\d+)?)\s*(кг|г|мл|л|шт)\b/iu', mb_strtolower($title), $m)) {
+        $src = trim($displayRatio) !== '' ? $displayRatio : $title;
+        if (! preg_match('/(\d+(?:[.,]\d+)?)\s*(кг|г|мл|л|шт)\b/iu', mb_strtolower($src), $m)) {
             return [null, null];
         }
         $n = (float) str_replace(',', '.', $m[1]);
